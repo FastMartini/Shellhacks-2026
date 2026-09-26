@@ -24,10 +24,10 @@ The full design (scope, API contracts, SQLite schema, scanner rules, vault flow,
 | --- | --- | --- |
 | Replay clock + prices (`/replay/*`, `/prices`) | Khalil | Working; falls back to placeholder prices until replay bars are loaded |
 | Trade log + stats (`/transactions`, `/portfolio`) | Khalil | Working, computed from the ledger |
-| Replay data loader (Alpaca bars, Finnhub news) | Matthew | In progress |
+| Replay data loader (Alpaca bars, Finnhub news) | Matthew | Working; loads 19 symbols atomically into SQLite |
 | Vault (`/faucet`, `/trade/quote`, `/trade/submit`) | Matthew | Stubs returning fake data in the contract's shape |
-| Scanner + `/alerts` | Diego | Stub |
-| Frontend | Diego, Justin | Skeleton |
+| Scanner + `/alerts` | Diego | Working; 3 real-data alerts, revealed by replay time |
+| Frontend | Diego, Justin | Dashboard and scanner working; vault-backed trade submission pending |
 | Mints, vault keypair, `mints.json` | Justin | In progress |
 
 ## Run it locally

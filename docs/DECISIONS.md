@@ -62,7 +62,7 @@ Settled with the team in a question-by-question review (Sept 25–26). Later dec
 
 ## Still unverified — check first
 
-- [ ] Friday minute bars actually produce 3–6 alerts, and which stock supports a clean live win (AKAM vs. MSFT/DDOG)
+- [x] Friday minute bars produce 3 alerts with the agreed rules: AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM. Entry/exit rehearsal still needs to select the cleanest trade.
 - [ ] Phantom signs a vault-fee-payer transaction without a warning (the 6 PM checkpoint test run)
 - [ ] Phantom devnet display ("Unknown token", missing fee)
 - [ ] Whether xStocks is available in Argentina, Ukraine and Nigeria (don't claim it until checked)

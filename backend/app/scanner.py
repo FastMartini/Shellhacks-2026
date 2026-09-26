@@ -1,0 +1,166 @@
+"""Large-cap momentum scanner backed by the replay database.
+
+The full replay day is evaluated ahead of time, but the API only reveals an
+alert after the replay clock reaches it. This keeps jump-to-next deterministic
+without leaking future alerts to the UI.
+"""
+
+import json
+import sqlite3
+from datetime import datetime, timedelta
+
+from . import config, db, prices
+
+# Ported conceptually from the team's reference scanner. These headlines report
+# movement rather than explaining it, so they do not count as a catalyst.
+GENERIC_NEWS_HEADLINE_TERMS = (
+    "top gainers and losers",
+    "top premarket gainers",
+    "top pre-market gainers",
+    "pre-market session",
+    "premarket session",
+    "pre market session",
+    "pre-market movers",
+    "premarket movers",
+    "pre market movers",
+    "after-hours movers",
+    "after hours movers",
+    "morning movers",
+    "midday movers",
+    "market movers",
+    "stock movers",
+    "stocks moving",
+    "biggest stock movers",
+    "biggest premarket stock movers",
+    "biggest pre-market stock movers",
+    "shares are trading higher",
+    "shares are trading lower",
+    "why shares",
+    "why is",
+    "why are",
+    "market update",
+    "watchlist",
+)
+
+
+def is_quality_catalyst(headline: str) -> bool:
+    normalized = " ".join(headline.lower().replace("-", " ").split())
+    return bool(normalized) and not any(
+        term.replace("-", " ") in normalized for term in GENERIC_NEWS_HEADLINE_TERMS
+    )
+
+
+def _daily_average_volume(conn: sqlite3.Connection, symbol: str) -> float | None:
+    rows = conn.execute(
+        "SELECT volume FROM daily_bars WHERE symbol = ? AND date < ? ORDER BY date DESC LIMIT 20",
+        (symbol, config.REPLAY_DATE.isoformat()),
+    ).fetchall()
+    if not rows:
+        return None
+    return sum(row["volume"] for row in rows) / len(rows)
+
+
+def _quality_news(conn: sqlite3.Connection, symbol: str) -> list[sqlite3.Row]:
+    return [
+        row
+        for row in conn.execute(
+            "SELECT headline, url, published_at FROM news WHERE symbol = ? ORDER BY published_at",
+            (symbol,),
+        )
+        if is_quality_catalyst(row["headline"])
+    ]
+
+
+def _latest_catalyst(rows: list[sqlite3.Row], at: datetime) -> sqlite3.Row | None:
+    start = config.iso(at - timedelta(hours=config.NEWS_LOOKBACK_HOURS))
+    end = config.iso(at)
+    eligible = [row for row in rows if start <= row["published_at"] <= end]
+    return eligible[-1] if eligible else None
+
+
+def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
+    previous_close = prices.prev_close(symbol, conn)
+    average_daily_volume = _daily_average_volume(conn, symbol)
+    if previous_close <= 0 or not average_daily_volume:
+        return None
+
+    news_rows = _quality_news(conn, symbol)
+    if not news_rows:
+        return None
+
+    cumulative_volume = 0
+    bars = conn.execute(
+        "SELECT ts, close, volume FROM bars WHERE symbol = ? AND ts >= ? AND ts < ? ORDER BY ts",
+        (symbol, config.iso(config.MARKET_OPEN), config.iso(config.MARKET_CLOSE)),
+    )
+    for bar in bars:
+        at = datetime.fromisoformat(bar["ts"])
+        cumulative_volume += bar["volume"]
+        elapsed_minutes = min(390, max(1, int((at - config.MARKET_OPEN).total_seconds() // 60) + 1))
+        expected_volume = average_daily_volume * elapsed_minutes / 390
+        relative_volume = cumulative_volume / expected_volume if expected_volume else 0.0
+        change_pct = (bar["close"] / previous_close - 1) * 100
+
+        if change_pct < config.MIN_CHANGE_PCT or relative_volume < config.MIN_RVOL:
+            continue
+        catalyst = _latest_catalyst(news_rows, at)
+        if catalyst is None:
+            continue
+        return {
+            "id": f"{symbol}-{at:%H%M}",
+            "symbol": symbol,
+            "time": config.iso(at),
+            "price": round(bar["close"], 2),
+            "change_pct": round(change_pct, 2),
+            "rvol": round(relative_volume, 2),
+            "rules_passed": ["rvol", "change", "news"],
+            "headline": catalyst["headline"],
+            "headline_url": catalyst["url"],
+        }
+    return None
+
+
+def rebuild_alerts(
+    conn: sqlite3.Connection | None = None, symbols: list[str] | None = None
+) -> int:
+    """Replace computed alerts with the first qualifying alert per symbol."""
+    conn = conn or db.get()
+    symbols = symbols or config.SYMBOLS
+    marks = ",".join("?" for _ in symbols)
+    alerts = [alert for symbol in symbols if (alert := _first_alert(conn, symbol)) is not None]
+    with conn:
+        conn.execute(f"DELETE FROM alerts WHERE symbol IN ({marks})", symbols)
+        conn.executemany(
+            "INSERT INTO alerts (id, symbol, ts, price, change_pct, rvol, rules_passed, headline, url) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    alert["id"], alert["symbol"], alert["time"], alert["price"], alert["change_pct"],
+                    alert["rvol"], json.dumps(alert["rules_passed"]), alert["headline"], alert["headline_url"],
+                )
+                for alert in alerts
+            ],
+        )
+    return len(alerts)
+
+
+def visible_alerts(at: datetime, conn: sqlite3.Connection | None = None) -> list[dict]:
+    conn = conn or db.get()
+    rows = conn.execute(
+        "SELECT * FROM alerts WHERE ts <= ? ORDER BY ts DESC", (config.iso(at),)
+    ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "symbol": row["symbol"],
+            "token_symbol": config.TOKEN_SYMBOLS[row["symbol"]],
+            "time": row["ts"],
+            "price": row["price"],
+            "change_pct": row["change_pct"],
+            "rvol": row["rvol"],
+            "rules_passed": json.loads(row["rules_passed"]),
+            "headline": row["headline"],
+            "headline_url": row["url"],
+        }
+        for row in rows
+    ]

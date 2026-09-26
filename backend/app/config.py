@@ -21,6 +21,13 @@ SYMBOLS = [
     "NVDA", "PLTR", "QQQ", "SPY", "TSLA", "AKAM", "DDOG", "INTC", "ZS",
 ]
 
+# Scanner rules for large-cap stocks. Real equities provide the market signal;
+# the corresponding devnet tokens are used only for simulated execution.
+TOKEN_SYMBOLS = {symbol: f"{symbol}x-demo" for symbol in SYMBOLS}
+MIN_CHANGE_PCT = 3.0
+MIN_RVOL = 2.0
+NEWS_LOOKBACK_HOURS = 24
+
 # 1 token = 1,000,000 base units, for both dUSD and stock tokens.
 UNITS = 1_000_000
 
