@@ -1,6 +1,7 @@
 """Vault transaction shape and signing order, offline: no RPC calls reach the network."""
 
 import asyncio
+import os
 
 import pytest
 from solders.hash import Hash
@@ -85,3 +86,11 @@ def test_cosign_refuses_when_she_has_not_signed():
     with pytest.raises(TransactionError):
         asyncio.run(chain.cosign_and_send(rpc, VAULT, chain.unsigned_tx(msg), msg))
     assert rpc.sent is None
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_saved_keypair_is_readable_only_by_its_owner(tmp_path):
+    path = tmp_path / "keys" / "vault-keypair.json"
+    chain.save_keypair(VAULT, path)
+    assert path.stat().st_mode & 0o777 == 0o600  # the vault key is mint authority for every token
+    assert chain.load_keypair(path).pubkey() == VAULT.pubkey()

@@ -43,7 +43,10 @@ def load_keypair(path: Path) -> Keypair:
 
 
 def save_keypair(kp: Keypair, path: Path) -> None:
+    """Owner-only (0600) before the key is written: the vault key is mint authority for every token."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch(mode=0o600)
+    path.chmod(0o600)  # touch leaves an existing file's mode alone
     path.write_text(json.dumps(list(bytes(kp))))
 
 
