@@ -91,7 +91,7 @@ docs/                build spec, decisions, project notes
 - **Khalil Peguero**: backend, trade log and stats, pitch
 - **Diego Martinez**: scanner, React frontend
 - **Matthew**: vault, replay data
-- **Justin**: setup scripts, Devpost, slides
+- **Justin Cardenas**: setup scripts, Devpost, slides
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how we branch, review and merge.
 
