@@ -43,7 +43,7 @@ h1 { max-width: 760px; font-size: clamp(40px, 5.2vw, 68px); line-height: 1.02; l
 .speed-control select { width: 100%; margin-top: 7px; padding: 9px 10px; color: #eaf4ef; border: 1px solid #ffffff1c; border-radius: 8px; background: #07100d; }
 .replay-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .replay-actions button { padding: 12px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; }
-.rewind-button { color: #b9cbc2; border: 1px solid #ffffff1c; background: #ffffff08; }
+.reset-button { color: #b9cbc2; border: 1px solid #ffffff1c; background: #ffffff08; }
 .play-button { color: #07100d; border: 1px solid #6cf2a6; background: #6cf2a6; }
 .live-dot.running { animation: pulse 1.5s infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 18px #6cf2a6; opacity: .65; } }
@@ -108,16 +108,27 @@ input:focus { border-color: #6cf2a6; }
 .chart-scale { position: absolute; inset: 10px auto 24px 0; display: flex; flex-direction: column; justify-content: space-between; color: #65766e; font-size: 10px; }
 .chart-empty { display: grid; min-height: 260px; place-content: center; gap: 7px; text-align: center; color: #73867c; }
 .chart-empty b { color: #dfece6; }
-.holdings-panel .panel-heading > span, .activity-panel .panel-heading > span { color: #70837a; font-size: 12px; }
-.holdings-list, .activity-list { display: grid; gap: 4px; }
-.holdings-list > div, .activity-list > div { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid #ffffff0a; }
-.holdings-list > div > span:last-child, .activity-list > div > span:last-child { text-align: right; }
-.holdings-list b, .holdings-list small, .activity-list b, .activity-list small { display: block; }
-.holdings-list small, .activity-list small { margin-top: 3px; color: #70837a; font-size: 11px; }
-.asset-icon, .activity-icon { display: grid !important; place-items: center; width: 34px; height: 34px; color: #07100d; border-radius: 10px; background: #6cf2a6; font-weight: 800; }
-.activity-panel { margin-top: 16px; }
-.activity-empty { padding: 30px 0; color: #70837a; text-align: center; }
-.activity-icon.sell { color: #fff0ee; background: #bd5146; }
+.holdings-panel .panel-heading > span, .transaction-panel .panel-heading > span { color: #70837a; font-size: 12px; }
+.holdings-list { display: grid; gap: 4px; }
+.holdings-list > div { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid #ffffff0a; }
+.holdings-list > div > span:last-child { text-align: right; }
+.holdings-list b, .holdings-list small { display: block; }
+.holdings-list small { margin-top: 3px; color: #70837a; font-size: 11px; }
+.asset-icon { display: grid !important; place-items: center; width: 34px; height: 34px; color: #07100d; border-radius: 10px; background: #6cf2a6; font-weight: 800; }
+.transaction-panel { margin-top: 16px; padding: 0; overflow: hidden; }
+.transaction-panel .panel-heading { padding: 24px 24px 0; }
+.transaction-table-wrap { overflow-x: auto; border-top: 1px solid #ffffff0d; }
+.transaction-table { width: 100%; min-width: 1320px; border-collapse: collapse; }
+.transaction-table th { padding: 12px 16px; color: #71837a; background: #09130f; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.transaction-table td { padding: 14px 16px; color: #b8c8c0; border-top: 1px solid #ffffff0a; font-size: 12px; white-space: nowrap; }
+.transaction-table tbody tr:hover { background: #ffffff04; }
+.transaction-symbol { color: #eef7f2 !important; font-weight: 800; }
+.transaction-side { padding: 4px 7px; border-radius: 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.transaction-side.buy { color: #79e4a6; background: #163d2a; }
+.transaction-side.sell { color: #ffbd90; background: #42291b; }
+.transaction-table a { color: #6cf2a6; font-weight: 700; text-decoration: none; }
+.transaction-empty { padding: 38px 24px; color: #70837a; border-top: 1px solid #ffffff0d; text-align: center; }
+.transaction-note { margin: 0; padding: 13px 24px; color: #65766e; border-top: 1px solid #ffffff0d; font-size: 11px; }
 
 @media (max-width: 800px) {
   main { width: min(100% - 24px, 640px); }

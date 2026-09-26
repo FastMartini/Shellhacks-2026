@@ -6,6 +6,7 @@ import { apiRequest } from "./api/client";
 import type { Alert, Portfolio, PriceQuote, ReplayState, TransactionRow } from "./api/types";
 import { EquityChart } from "./components/EquityChart";
 import { StatCard } from "./components/StatCard";
+import { TransactionTable } from "./components/TransactionTable";
 
 const EMPTY_PORTFOLIO: Portfolio = {
   cash: 0, holdings: [], total_value: 0, deposited: 0,
@@ -14,7 +15,6 @@ const EMPTY_PORTFOLIO: Portfolio = {
 };
 
 const REPLAY_START_MS = new Date("2026-09-25T09:25:00-04:00").getTime();
-const REWIND_MS = 5 * 60 * 1_000;
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -111,22 +111,20 @@ export default function App() {
     } finally { setWorking(false); }
   }
 
-  async function rewindReplay() {
-    if (!replay) return;
+  async function resetReplayTimer() {
     setWorking(true); setNotice(null);
-    const target = new Date(Math.max(REPLAY_START_MS, new Date(replay.sim_time).getTime() - REWIND_MS));
     try {
       setReplay(await apiRequest<ReplayState>("/replay/control", {
         method: "POST",
-        body: JSON.stringify({ action: "seek", to: target.toISOString() }),
+        body: JSON.stringify({ action: "seek", to: new Date(REPLAY_START_MS).toISOString() }),
       }));
       await loadMarket(true);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not rewind the replay.");
+      setError(requestError instanceof Error ? requestError.message : "Could not reset the replay timer.");
     } finally { setWorking(false); }
   }
 
-  const canRewind = replay != null && new Date(replay.sim_time).getTime() > REPLAY_START_MS;
+  const canResetTimer = replay != null && new Date(replay.sim_time).getTime() > REPLAY_START_MS;
 
   return (
     <main>
@@ -150,7 +148,7 @@ export default function App() {
             <strong>{marketTime(replay?.sim_time)} ET</strong>
             <div className="replay-meta"><span>Friday, Sep 25</span><span>{replay?.speed ?? 30}× speed</span></div>
             <label className="speed-control">Replay speed<select value={replay?.speed ?? 30} disabled={working} onChange={(event) => void controlReplay(replay?.running ? "start" : "pause", Number(event.target.value))}><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option></select></label>
-            <div className="replay-actions"><button className="rewind-button" disabled={working || loading || !canRewind} onClick={() => void rewindReplay()}>↶ Rewind 5 min</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
+            <div className="replay-actions"><button className="reset-button" title="Return the replay clock to 9:25 AM without clearing trades" disabled={working || loading || !canResetTimer} onClick={() => void resetReplayTimer()}>↺ Reset timer</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
           </div>
         </section>
 
@@ -199,7 +197,7 @@ export default function App() {
           <article className="panel chart-panel"><div className="panel-heading"><div><p className="eyebrow">Performance</p><h2>Account value</h2></div><span className="range-pill">Replay day</span></div><EquityChart points={portfolio.equity_curve} /></article>
           <article className="panel holdings-panel"><div className="panel-heading"><div><p className="eyebrow">Assets</p><h2>Holdings</h2></div><span>{portfolio.holdings.length} positions</span></div>{portfolio.holdings.length === 0 ? <div className="empty-state"><b>No positions yet</b><span>Open the scanner to explore the first signal.</span><button className="text-button" onClick={() => navigate("scanner")}>Open scanner →</button></div> : <div className="holdings-list">{portfolio.holdings.map((holding) => <div key={holding.symbol}><span className="asset-icon">{holding.symbol[0]}</span><span><b>{holding.symbol}</b><small>{holding.qty.toFixed(6)} shares</small></span><span><b>{money(holding.market_value)}</b><small className={holding.unrealized_pl >= 0 ? "positive" : "negative"}>{signed(holding.unrealized_pl)}</small></span></div>)}</div>}</article>
         </section>
-        <section className="panel activity-panel"><div className="panel-heading"><div><p className="eyebrow">History</p><h2>Recent activity</h2></div><span>{transactions.length} transactions</span></div>{transactions.length === 0 ? <div className="activity-empty">Completed buys and sells will appear here.</div> : <div className="activity-list">{transactions.slice(0, 5).map((tx) => <div key={tx.id}><span className={`activity-icon ${tx.side}`}>{tx.side === "buy" ? "↓" : "↑"}</span><span><b>{tx.side === "buy" ? "Bought" : "Sold"} {tx.symbol}</b><small>{marketTime(tx.sim_time)} · {tx.qty.toFixed(6)} shares</small></span><span><b>{money(tx.usd_amount)}</b><small>{tx.realized_pl == null ? "Completed" : `${signed(tx.realized_pl)} P/L`}</small></span></div>)}</div>}</section>
+        <TransactionTable transactions={transactions} />
       </>}
     </main>
   );
