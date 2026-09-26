@@ -52,6 +52,19 @@ CREATE TABLE IF NOT EXISTS ledger (
     usd_units INTEGER NOT NULL,
     signature TEXT
 );
+CREATE TABLE IF NOT EXISTS latest_stock_prices (
+    symbol VARCHAR(5) NOT NULL,
+    high FLOAT NOT NULL,
+    low FLOAT NOT NULL,
+    open FLOAT NOT NULL,
+    close FLOAT NOT NULL,
+    volume_weighted_price FLOAT NOT NULL,
+    number_of_trades INTEGER NOT NULL,
+    volume INTEGER NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    PRIMARY KEY (symbol)
+);
+
 CREATE INDEX IF NOT EXISTS ledger_wallet ON ledger (wallet, id);
 """
 
