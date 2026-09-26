@@ -20,6 +20,11 @@ def record(wallet: str, kind: str, symbol: str | None, qty_units: int | None, pr
     return cur.lastrowid
 
 
+def rows(wallet: str) -> list:
+    """The wallet's ledger rows, oldest first."""
+    return db.get().execute("SELECT * FROM ledger WHERE wallet = ? ORDER BY ts, id", (wallet,)).fetchall()
+
+
 def clear(wallet: str) -> None:
     """The ledger part of /demo/reset."""
     conn = db.get()
