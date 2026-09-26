@@ -1,0 +1,61 @@
+# ── Secrets ──────────────────────────────────────────────
+# API keys (Alpaca, Finnhub, Helius). Commit .env.example files instead.
+.env
+.env.*
+!.env.example
+
+# Solana keypairs (vault, demo wallet). Anyone with these controls the mints.
+# mints.json holds public addresses only and IS committed.
+*keypair*.json
+*-keypair.json
+vault*.json
+demo-wallet*.json
+id.json
+keys/
+
+# ── Python (backend) ─────────────────────────────────────
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Replay data ──────────────────────────────────────────
+# SQLite is rebuilt by the replay loader; don't commit it.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ── Node / React (frontend) ──────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Editors and OS ───────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── Demo recordings ──────────────────────────────────────
+# The backup screen video is too big for git; share it on Drive.
+*.mp4
+*.mov
+
+# ── Claude Code local settings ───────────────────────────
+.claude/settings.local.json

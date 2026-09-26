@@ -1,6 +1,6 @@
-asyncio
-"fastapi[standard]"
+fastapi[standard]
 httpx
 python-dotenv
-solana
+solana==0.40.*
 solders
+pytest
