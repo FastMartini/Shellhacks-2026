@@ -244,7 +244,7 @@ The critical path runs through Matthew: the bar download and the vault test both
 | --- | --- | --- | --- | --- |
 | Sat 2:45–3:30 | **Everyone:** fund the vault with devnet SOL in the first 10 minutes; agree on this doc's contracts and SQLite schema; create the repo; stub every endpoint with fake data; share `.env` keys (Alpaca, Finnhub, Helius) | | | |
 | Sat 3:30–6:00 | FastAPI skeleton with CORS, `price_at` + replay clock (stub by 4:30) | React + Vite scaffold, Phantom connect, scanner rules config | Download Friday SIP bars + news; vault test run (Phantom signs first) | Mints + vault keypair by 4:45, then wallet button and transaction table |
-| **Sat 6:00 PM checkpoint** | Vault test run passes with no Phantom warning? Scanner fires 3–6 alerts on the real bars? Demo trades scripted against real prices? If not, everyone helps fix that first | | | |
+| **Sat 6:00 PM checkpoint** | Vault test run lands (Phantom's devnet warning is expected)? Scanner fires 3–6 alerts on the real bars? Demo trades scripted against real prices? If not, everyone helps fix that first | | | |
 | Sat 6:00–6:30 | Dinner | | | |
 | Sat 6:30–10:30 | Ledger, average cost, `/transactions`, `/portfolio` | Scanner service + `/alerts`; trade ticket screen | `/faucet`, `/trade/quote`, `/trade/submit` | Front-end help; peso-vs-dollar data for slides |
 | **Sat 10:30 PM checkpoint** | Must-have loop works end to end, rough: connect → demo dollars → buy → sell → log → total P/L | | | |
