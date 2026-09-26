@@ -1,0 +1,6 @@
+fastapi[standard]
+httpx
+python-dotenv
+solana==0.40.*
+solders
+pytest
