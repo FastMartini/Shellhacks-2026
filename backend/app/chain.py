@@ -85,25 +85,36 @@ def unsigned_tx(message: Message) -> bytes:
     return bytes(Transaction.new_unsigned(message))
 
 
-async def cosign_and_send(rpc: AsyncClient, vault_kp: Keypair, signed_tx: bytes, expected: Message) -> Signature:
-    """/trade/submit: refuse anything but the quoted message, add the vault's signature, send, wait for confirmed."""
+async def confirm(rpc: AsyncClient, sig: Signature, last_valid_block_height: int | None = None) -> None:
+    """Waits for `confirmed`, then raises if the transaction failed: confirm_transaction returns either way.
+    Given the blockhash's last valid height, it gives up once the transaction can no longer land, not after 90 s."""
+    status = (await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=POLL_S,
+                                            last_valid_block_height=last_valid_block_height)).value[0]
+    if status is None or status.err is not None:
+        raise RuntimeError(f"transaction {sig} failed: {status.err if status else 'no status'}")
+
+
+async def cosign_and_send(rpc: AsyncClient, vault_kp: Keypair, signed_tx: bytes, expected: Message,
+                          last_valid_block_height: int | None = None) -> Signature:
+    """/trade/submit: refuse anything but the quoted message, add the vault's signature, send, wait for confirmed.
+    Pass the quote's last_valid_block_height (from get_latest_blockhash) so a dropped transaction fails fast."""
     tx = Transaction.from_bytes(signed_tx)
     if bytes(tx.message) != bytes(expected):
         raise ValueError("signed transaction does not match the quote")
     tx.partial_sign([vault_kp], tx.message.recent_blockhash)
     tx.verify()  # raises if her signature is missing or wrong
     sig = (await rpc.send_raw_transaction(bytes(tx))).value
-    await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=POLL_S)
+    await confirm(rpc, sig, last_valid_block_height)
     return sig
 
 
 async def faucet(rpc: AsyncClient, vault_kp: Keypair, dusd: Pubkey, owner: Pubkey, units: int) -> Signature:
     """Mints dUSD to her. Only the vault signs, so she needs no SOL."""
-    blockhash = (await rpc.get_latest_blockhash()).value.blockhash
+    latest = (await rpc.get_latest_blockhash()).value
     tx = Transaction.new_signed_with_payer([
         create_idempotent_associated_token_account(vault_kp.pubkey(), owner, dusd),
         _mint_ix(vault_kp.pubkey(), dusd, owner, units),
-    ], vault_kp.pubkey(), [vault_kp], blockhash)
+    ], vault_kp.pubkey(), [vault_kp], latest.blockhash)
     sig = (await rpc.send_raw_transaction(bytes(tx))).value
-    await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=POLL_S)
+    await confirm(rpc, sig, latest.last_valid_block_height)
     return sig

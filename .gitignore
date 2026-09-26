@@ -21,6 +21,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+# scripts/phantom_check.py writes this on a quote mismatch, for comparing offline
+phantom_signed.b64
 
 # ── Replay data ──────────────────────────────────────────
 # SQLite is rebuilt by the replay loader; don't commit it.

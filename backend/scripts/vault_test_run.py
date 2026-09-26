@@ -36,18 +36,20 @@ async def main() -> None:
         sig = await chain.faucet(rpc, vault, mints["dUSD"], sofia.pubkey(), 1000 * config.UNITS)
         print(f"faucet  {explorer(sig)}")
 
-        # /trade/quote: unsigned legacy tx, vault as fee payer, fresh blockhash; keep the message for the check.
-        blockhash = (await rpc.get_latest_blockhash()).value.blockhash
+        # /trade/quote: unsigned legacy tx, vault as fee payer, fresh blockhash; keep the message for the check
+        # and the blockhash's last valid height for the confirm.
+        latest = (await rpc.get_latest_blockhash()).value
         message = chain.swap_message(vault.pubkey(), sofia.pubkey(), mints["dUSD"], USD_UNITS,
-                                     mints["AKAM"], QTY_UNITS, blockhash)
+                                     mints["AKAM"], QTY_UNITS, latest.blockhash)
         unsigned = chain.unsigned_tx(message)
 
         # Front-end: she signs first (Phantom's signTransaction), serialized without the vault's signature.
         tx = Transaction.from_bytes(unsigned)
-        tx.partial_sign([sofia], blockhash)
+        tx.partial_sign([sofia], latest.blockhash)
 
         # /trade/submit
-        sig = await chain.cosign_and_send(rpc, vault, bytes(tx), message)
+        sig = await chain.cosign_and_send(rpc, vault, bytes(tx), message,
+                                          last_valid_block_height=latest.last_valid_block_height)
         print(f"buy     {explorer(sig)}")
         print(f"balances: {await balance(rpc, sofia.pubkey(), mints['dUSD'])} dUSD, "
               f"{await balance(rpc, sofia.pubkey(), mints['AKAM'])} AKAM")

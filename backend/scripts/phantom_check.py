@@ -96,7 +96,7 @@ async def submit(body: SubmitBody):
                 if bytes(Transaction.from_bytes(raw).message) != bytes(message):
                     raise ValueError("signed transaction does not match the quote")
                 sig = (await rpc.send_raw_transaction(raw)).value
-                await rpc.confirm_transaction(sig, sleep_seconds=chain.POLL_S)
+                await chain.confirm(rpc, sig)
             else:
                 sig = await chain.cosign_and_send(rpc, chain.vault(), raw, message)
     except ValueError as e:
@@ -126,7 +126,7 @@ pre{white-space:pre-wrap;background:#f4f4f4;padding:12px}</style>
 <p>Phantom in Testnet Mode (devnet). Watch for a red warning on the buy.</p>
 <button id="connect">1. Connect Phantom</button>
 <button id="faucet" disabled>2. Get 1,000 dUSD</button>
-<button id="buy" disabled>3. Buy 1 AKAM ($116)</button>
+<button id="vault_pays" disabled>3. Buy 1 AKAM ($116)</button>
 <p>Fallbacks to compare in Phantom (she needs a little SOL for these):</p>
 <button id="she_pays" disabled>3b. Buy, she pays the fee</button>
 <button id="burn_only" disabled>3c. Burn $116 dUSD, she signs alone</button>
@@ -157,7 +157,7 @@ $("connect").onclick = () => step($("connect"), async () => {
   log("waiting for you to approve in Phantom (click its toolbar icon if no popup)…");
   wallet = (await provider.connect()).publicKey.toString();
   log("connected " + wallet);
-  for (const id of ["faucet", "buy", "she_pays", "burn_only"]) $(id).disabled = false;
+  for (const id of ["faucet", "vault_pays", "she_pays", "burn_only"]) $(id).disabled = false;
 });
 
 $("faucet").onclick = () => step($("faucet"), async () => {
@@ -174,7 +174,7 @@ const buy = (mode) => () => step($(mode), async () => {
   const signed_tx_base64 = btoa(String.fromCharCode(...raw));
   log(mode + "… " + (await post("/submit", {quote_id, signed_tx_base64})).explorer_url);
 });
-$("buy").onclick = buy("buy");
+$("vault_pays").onclick = buy("vault_pays");
 $("she_pays").onclick = buy("she_pays");
 $("burn_only").onclick = buy("burn_only");
 </script>

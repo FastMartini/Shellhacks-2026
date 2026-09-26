@@ -11,7 +11,6 @@ Run from backend/:  ./venv/bin/python -m scripts.setup_devnet
 import asyncio
 import json
 
-from solana.rpc.commitment import Confirmed
 from solders.keypair import Keypair
 from solders.system_program import CreateAccountParams, create_account
 from solders.transaction import Transaction
@@ -31,7 +30,7 @@ async def fund(rpc, vault: Keypair) -> None:
         return
     try:
         sig = (await rpc.request_airdrop(vault.pubkey(), 2 * LAMPORTS_PER_SOL)).value
-        await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=chain.POLL_S)
+        await chain.confirm(rpc, sig)
         print("airdropped 2 SOL to the vault")
     except Exception as e:
         raise SystemExit(f"Airdrop failed ({e}). Fund {vault.pubkey()} at faucet.solana.com, then re-run.")
@@ -47,8 +46,7 @@ async def create_mint(rpc, vault: Keypair) -> str:
         initialize_mint(InitializeMintParams(decimals=6, program_id=TOKEN_PROGRAM_ID, mint=mint.pubkey(),
                                              mint_authority=vault.pubkey())),
     ], vault.pubkey(), [vault, mint], blockhash)
-    await rpc.confirm_transaction((await rpc.send_raw_transaction(bytes(tx))).value, Confirmed,
-                                  sleep_seconds=chain.POLL_S)
+    await chain.confirm(rpc, (await rpc.send_raw_transaction(bytes(tx))).value)  # a failed mint stays out of mints.json
     return str(mint.pubkey())
 
 

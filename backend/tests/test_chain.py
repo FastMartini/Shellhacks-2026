@@ -6,7 +6,8 @@ import pytest
 from solders.hash import Hash
 from solders.keypair import Keypair
 from solders.signature import Signature
-from solders.transaction import Transaction
+from solders.transaction import Transaction, TransactionError
+from solders.transaction_status import InstructionErrorCustom, TransactionErrorInstructionError
 
 from app import chain
 
@@ -15,15 +16,17 @@ BLOCKHASH = Hash.new_unique()
 
 
 class FakeRpc:
-    def __init__(self):
-        self.sent = None
+    def __init__(self, err=None):
+        self.sent, self.err = None, err
 
     async def send_raw_transaction(self, raw):
         self.sent = Transaction.from_bytes(raw)
         return type("Resp", (), {"value": self.sent.signatures[0]})()
 
-    async def confirm_transaction(self, sig, commitment=None, sleep_seconds=0.5):
-        return None
+    async def confirm_transaction(self, sig, commitment=None, sleep_seconds=0.5, last_valid_block_height=None):
+        # Like solana-py's: returns once the status reaches confirmed, whether or not the transaction failed.
+        self.last_valid_block_height = last_valid_block_height
+        return type("Resp", (), {"value": [type("Status", (), {"err": self.err})()]})()
 
 
 def buy_message():
@@ -56,6 +59,19 @@ def test_cosign_sends_a_fully_signed_transaction():
     assert sig == rpc.sent.signatures[0]
 
 
+def test_cosign_raises_when_the_transaction_confirms_with_an_error():
+    # e.g. two trades sent within a second both pass preflight, then the second burn (instruction 3) comes up short.
+    rpc, msg = FakeRpc(err=TransactionErrorInstructionError(3, InstructionErrorCustom(1))), buy_message()
+    with pytest.raises(RuntimeError, match="failed"):
+        asyncio.run(chain.cosign_and_send(rpc, VAULT, signed_by_sofia(msg), msg))
+
+
+def test_cosign_waits_only_until_the_quoted_blockhash_expires():
+    rpc, msg = FakeRpc(), buy_message()
+    asyncio.run(chain.cosign_and_send(rpc, VAULT, signed_by_sofia(msg), msg, last_valid_block_height=1_000))
+    assert rpc.last_valid_block_height == 1_000
+
+
 def test_cosign_refuses_a_transaction_that_differs_from_the_quote():
     rpc, quoted = FakeRpc(), buy_message()
     tampered = chain.swap_message(VAULT.pubkey(), SOFIA.pubkey(), DUSD, 1, AKAM, 1_000_000, BLOCKHASH)
@@ -66,6 +82,6 @@ def test_cosign_refuses_a_transaction_that_differs_from_the_quote():
 
 def test_cosign_refuses_when_she_has_not_signed():
     rpc, msg = FakeRpc(), buy_message()
-    with pytest.raises(Exception):
+    with pytest.raises(TransactionError):
         asyncio.run(chain.cosign_and_send(rpc, VAULT, chain.unsigned_tx(msg), msg))
     assert rpc.sent is None
