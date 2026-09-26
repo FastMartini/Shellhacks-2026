@@ -6,6 +6,9 @@ Downloads Friday's 1-minute SIP bars (4:00 AM–8:00 PM ET) into `bars`, the 20 
 `daily_bars`, and Finnhub company news for Sept 24–25 into `news`. Everything is fetched and checked before
 anything is written, then written in one transaction that replaces the old rows for these symbols, so a
 failed run changes nothing and a rerun is safe. The API never calls this; it only reads what it wrote.
+
+Run it before starting uvicorn, or restart uvicorn afterwards: the scanner computes alerts at startup.
+Needs ALPACA_API_KEY, ALPACA_API_SECRET and FINNHUB_API_KEY in backend/.env (see .env.example).
 """
 
 import os

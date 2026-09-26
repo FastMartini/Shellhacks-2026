@@ -118,6 +118,7 @@ def test_second_load_replaces_rows(conn, monkeypatch):
     monkeypatch.setattr(load_replay.httpx, "get", FakeApis())
     load_replay.load(conn, SYMS)
     load_replay.load(conn, SYMS)
+    assert not conn.in_transaction  # committed: main() closes the connection without committing
     assert count(conn, "bars") == 3
     assert count(conn, "daily_bars") == 40
     assert count(conn, "news") == 2
