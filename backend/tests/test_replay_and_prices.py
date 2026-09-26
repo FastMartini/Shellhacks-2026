@@ -101,6 +101,7 @@ def test_http_contracts(conn):
     assert api.post("/replay/next-alert").json()["sim_time"] == "2026-09-25T10:15:00-04:00"
 
 
-def test_cors_allows_vite():
-    r = TestClient(app).get("/health", headers={"Origin": "http://localhost:5173"})
-    assert r.headers["access-control-allow-origin"] == "http://localhost:5173"
+@pytest.mark.parametrize("origin", ["http://localhost:5173", "http://127.0.0.1:5173"])
+def test_cors_allows_vite(origin):
+    r = TestClient(app).get("/health", headers={"Origin": origin})
+    assert r.headers["access-control-allow-origin"] == origin

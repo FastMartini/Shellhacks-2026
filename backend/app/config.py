@@ -26,7 +26,7 @@ UNITS = 1_000_000
 
 DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "..", "shellhacks.db"))
 
-FRONTEND_ORIGIN = "http://localhost:5173"
+FRONTEND_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 def iso(dt: datetime) -> str:

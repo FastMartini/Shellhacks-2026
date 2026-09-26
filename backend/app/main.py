@@ -18,7 +18,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="ShellHacks 2026", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[config.FRONTEND_ORIGIN],
+    allow_origins=config.FRONTEND_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
