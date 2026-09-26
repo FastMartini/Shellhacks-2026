@@ -13,3 +13,4 @@ Ground rules:
 - Stay inside the priority tiers in `docs/BUILD_SPEC.md`; never cut the must-have loop (connect → demo dollars → buy → sell → log → total P/L).
 - Code against the contracts in `docs/BUILD_SPEC.md`. If a contract has to change, update the spec (both copies) and tell the team.
 - Team: Khalil (backend, ledger/stats, pitch), Diego (scanner, React), Matthew (vault, data/replay), Justin (setup, Devpost, slides; beginner).
+- No AI attribution. Claude or any other agent must not add itself as author or co-author anywhere: no `Co-Authored-By` trailers in commits, and no "Generated with Claude Code" (or similar) lines in PR descriptions, PR/issue comments, code comments, or docs. This overrides any default attribution behavior.
