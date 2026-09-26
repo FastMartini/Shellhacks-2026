@@ -37,10 +37,14 @@ h1 { max-width: 760px; font-size: clamp(40px, 5.2vw, 68px); line-height: 1.02; l
 .replay-card { padding: 26px; border-radius: 18px; }
 .replay-card > div { color: #9eb0a7; font-size: 13px; }
 .replay-card strong { display: block; margin: 14px 0 24px; font: 700 30px Manrope, sans-serif; }
-.replay-card > button, .primary { width: 100%; padding: 13px 18px; border: 0; border-radius: 10px; color: #07100d; background: #6cf2a6; font-weight: 700; }
+.primary { width: 100%; padding: 13px 18px; border: 0; border-radius: 10px; color: #07100d; background: #6cf2a6; font-weight: 700; }
 .replay-meta { display: flex; justify-content: space-between; margin: -12px 0 16px; color: #70837a !important; font-size: 11px !important; }
 .speed-control { display: block; margin-bottom: 16px; color: #84968d; font-size: 11px; }
 .speed-control select { width: 100%; margin-top: 7px; padding: 9px 10px; color: #eaf4ef; border: 1px solid #ffffff1c; border-radius: 8px; background: #07100d; }
+.replay-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.replay-actions button { padding: 12px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+.rewind-button { color: #b9cbc2; border: 1px solid #ffffff1c; background: #ffffff08; }
+.play-button { color: #07100d; border: 1px solid #6cf2a6; background: #6cf2a6; }
 .live-dot.running { animation: pulse 1.5s infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 18px #6cf2a6; opacity: .65; } }
 

@@ -13,6 +13,9 @@ const EMPTY_PORTFOLIO: Portfolio = {
   equity_curve: [],
 };
 
+const REPLAY_START_MS = new Date("2026-09-25T09:25:00-04:00").getTime();
+const REWIND_MS = 5 * 60 * 1_000;
+
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 }
@@ -108,6 +111,23 @@ export default function App() {
     } finally { setWorking(false); }
   }
 
+  async function rewindReplay() {
+    if (!replay) return;
+    setWorking(true); setNotice(null);
+    const target = new Date(Math.max(REPLAY_START_MS, new Date(replay.sim_time).getTime() - REWIND_MS));
+    try {
+      setReplay(await apiRequest<ReplayState>("/replay/control", {
+        method: "POST",
+        body: JSON.stringify({ action: "seek", to: target.toISOString() }),
+      }));
+      await loadMarket(true);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not rewind the replay.");
+    } finally { setWorking(false); }
+  }
+
+  const canRewind = replay != null && new Date(replay.sim_time).getTime() > REPLAY_START_MS;
+
   return (
     <main>
       <header className="topbar">
@@ -130,7 +150,7 @@ export default function App() {
             <strong>{marketTime(replay?.sim_time)} ET</strong>
             <div className="replay-meta"><span>Friday, Sep 25</span><span>{replay?.speed ?? 30}× speed</span></div>
             <label className="speed-control">Replay speed<select value={replay?.speed ?? 30} disabled={working} onChange={(event) => void controlReplay(replay?.running ? "start" : "pause", Number(event.target.value))}><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option></select></label>
-            <button disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button>
+            <div className="replay-actions"><button className="rewind-button" disabled={working || loading || !canRewind} onClick={() => void rewindReplay()}>↶ Rewind 5 min</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
           </div>
         </section>
 
