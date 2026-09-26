@@ -43,6 +43,12 @@ def test_vault_pays_the_fee_and_both_sign():
     assert Transaction.from_bytes(chain.unsigned_tx(msg)).signatures == [Signature.default()] * 2
 
 
+def test_sets_its_own_compute_budget_so_phantom_leaves_the_message_alone():
+    msg = buy_message()
+    programs = [str(msg.account_keys[ix.program_id_index]) for ix in msg.instructions]
+    assert programs[:2] == ["ComputeBudget111111111111111111111111111111"] * 2
+
+
 def test_cosign_sends_a_fully_signed_transaction():
     rpc, msg = FakeRpc(), buy_message()
     sig = asyncio.run(chain.cosign_and_send(rpc, VAULT, signed_by_sofia(msg), msg))

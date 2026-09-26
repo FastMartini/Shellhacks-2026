@@ -10,6 +10,7 @@ from pathlib import Path
 
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
+from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
 from solders.hash import Hash
 from solders.keypair import Keypair
 from solders.message import Message
@@ -30,6 +31,10 @@ VAULT_KEYPAIR = Path(os.getenv("VAULT_KEYPAIR", BACKEND / "keys" / "vault-keypai
 MINTS_PATH = BACKEND / "mints.json"
 # The public devnet RPC rate-limits status polling; a Helius URL in SOLANA_RPC_URL is faster and roomier.
 POLL_S = 2.0
+# Phantom adds its own compute budget (and so changes the message she signs) to any transaction without one,
+# which would fail the quote check. Setting both here keeps the message as quoted. ~40k CU used; fee is the vault's.
+COMPUTE_UNITS = 100_000
+MICROLAMPORTS_PER_CU = 1_000
 
 
 def load_keypair(path: Path) -> Keypair:
@@ -62,15 +67,17 @@ def _mint_ix(vault_key: Pubkey, mint: Pubkey, owner: Pubkey, units: int):
 
 
 def swap_message(vault_key: Pubkey, owner: Pubkey, pay_mint: Pubkey, pay_units: int,
-                 get_mint: Pubkey, get_units: int, blockhash: Hash) -> Message:
+                 get_mint: Pubkey, get_units: int, blockhash: Hash, fee_payer: Pubkey | None = None) -> Message:
     """Burn `pay_units` of her `pay_mint`, mint `get_units` of `get_mint` to her. Buy: pay dUSD, get stock.
     Sell: the mirror. The vault pays the fee and the rent for her token account if it's missing."""
     return Message.new_with_blockhash([
+        set_compute_unit_limit(COMPUTE_UNITS),
+        set_compute_unit_price(MICROLAMPORTS_PER_CU),
         create_idempotent_associated_token_account(vault_key, owner, get_mint),
         burn(BurnParams(program_id=TOKEN_PROGRAM_ID, account=get_associated_token_address(owner, pay_mint),
                         mint=pay_mint, owner=owner, amount=pay_units)),
         _mint_ix(vault_key, get_mint, owner, get_units),
-    ], vault_key, blockhash)
+    ], fee_payer or vault_key, blockhash)
 
 
 def unsigned_tx(message: Message) -> bytes:
