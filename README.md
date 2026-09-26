@@ -1,6 +1,6 @@
 # ShellHacks 2026: tokenized US stocks on Solana
 
-People outside the US, starting with Argentina, Ukraine and Nigeria, can't easily buy US stocks. This app lets them trade tokenized US stocks on Solana, with a momentum scanner that flags stocks moving on real news and a trade log that shows whether their trading works.
+People outside the US can't easily buy US stocks. This app lets them trade tokenized US stocks on Solana, with a momentum scanner that flags stocks moving on real news and a trade log that shows whether their trading works.
 
 For the demo, the market is **Friday Sept 25, 2026, replayed minute by minute**, and every trade is a real Solana **devnet** transaction using our own test tokens: `dUSD` ("demo dollars") and one mock token per stock (e.g. `AKAMx-demo`). US residents can't buy real xStocks, so production would route through Jupiter to real xStocks. xStocks track a stock's price; they aren't legal share ownership.
 
