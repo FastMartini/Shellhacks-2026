@@ -96,6 +96,15 @@ def transactions(rows) -> list[dict]:
     return list(reversed(book.transactions))
 
 
+def transaction(rows, row_id: int) -> dict | None:
+    """One /transactions row by ledger id, for /trade/submit to return after ledger.record().
+
+    Replays the whole ledger because cash_before, realized P/L and held_min depend on earlier rows.
+    None for a deposit or an unknown id.
+    """
+    return next((t for t in transactions(rows) if t["id"] == row_id), None)
+
+
 def portfolio(rows, price_fn: PriceFn, sim_time: datetime) -> dict:
     """GET /portfolio."""
     book = Book()

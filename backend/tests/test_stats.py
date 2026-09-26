@@ -125,3 +125,9 @@ def test_endpoints_read_the_ledger(api):
 
     api.post("/demo/reset", json={"wallet": W})
     assert api.get("/portfolio", params={"wallet": W}).json()["deposited"] == 0
+
+
+def test_transaction_lookup_by_id():
+    assert stats.transaction(SPEC_ROWS, 3) == next(t for t in stats.transactions(SPEC_ROWS) if t["id"] == 3)
+    assert stats.transaction(SPEC_ROWS, 1) is None  # deposits aren't transaction rows
+    assert stats.transaction(SPEC_ROWS, 99) is None
