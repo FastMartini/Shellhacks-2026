@@ -102,6 +102,8 @@ async def submit(body: SubmitBody):
     except ValueError as e:
         Path("phantom_signed.b64").write_text(body.signed_tx_base64)  # for comparing with the quote offline
         raise HTTPException(409, f"{e}. quoted: {describe(message)} | signed: {describe(Transaction.from_bytes(raw).message)}")
+    except RuntimeError as e:  # landed but failed on-chain (chain.confirm)
+        raise HTTPException(409, str(e))
     return {"explorer_url": explorer(sig)}
 
 
