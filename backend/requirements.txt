@@ -1,3 +1,5 @@
+asyncio
+"fastapi[standard]"
 httpx
 python-dotenv
 solana
