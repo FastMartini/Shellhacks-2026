@@ -6,11 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config, db, errors
-from .routers import alerts, portfolio, replay, vault, latest
+from .routers import alerts, portfolio, replay, vault
 
-from dotenv import load_dotenv
-
-load_dotenv()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -27,7 +24,7 @@ app.add_middleware(
 )
 errors.install(app)
 
-for r in (replay.router, alerts.router, vault.router, portfolio.router, latest.router):
+for r in (replay.router, alerts.router, vault.router, portfolio.router):
     app.include_router(r)
 
 

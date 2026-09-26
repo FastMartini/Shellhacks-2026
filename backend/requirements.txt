@@ -1,9 +1,6 @@
 fastapi[standard]
 httpx
-pydantic
 python-dotenv
 solana==0.40.*
-pytest
-requests
 solders
-SQLAlchemy
+pytest
