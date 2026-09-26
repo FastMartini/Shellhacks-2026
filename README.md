@@ -32,7 +32,7 @@ The full design (scope, API contracts, SQLite schema, scanner rules, vault flow,
 
 ## Run it locally
 
-You need **Python 3.11+** and **Node 22**.
+You need **Python 3.11+** and **Node 20.19+ or 22.12+** (Vite 8 requires one of these).
 
 ### Backend
 
