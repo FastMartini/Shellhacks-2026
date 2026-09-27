@@ -1,13 +1,14 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Transaction } from "@solana/web3.js";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 
 import { ApiRequestError, apiRequest } from "./api/client";
 import { submitSignedTrade } from "./api/trade";
-import type { Alert, FaucetResponse, Portfolio, PriceQuote, ReplayState, TradeQuote, TransactionRow } from "./api/types";
+import type { FaucetResponse, Portfolio, PriceBar, PriceQuote, ReplayState, ScannerRow, TradeQuote, TransactionRow } from "./api/types";
 import { EquityChart } from "./components/EquityChart";
 import { StatCard } from "./components/StatCard";
+import { StockChart } from "./components/StockChart";
 import { TransactionTable } from "./components/TransactionTable";
 
 const HeroSection = lazy(() => import("./components/HeroSection").then((module) => ({ default: module.HeroSection })));
@@ -18,7 +19,7 @@ const EMPTY_PORTFOLIO: Portfolio = {
   equity_curve: [],
 };
 
-const REPLAY_START_MS = new Date("2026-09-25T09:25:00-04:00").getTime();
+const REPLAY_START_MS = new Date("2026-09-25T07:00:00-04:00").getTime();
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -31,6 +32,20 @@ function signed(value: number, suffix = "") {
 function marketTime(value?: string) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }).format(new Date(value));
+}
+
+function marketSession(value?: string) {
+  if (!value) return "Loading session";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/New_York",
+  }).formatToParts(new Date(value));
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  const minutes = hour * 60 + minute;
+  if (minutes < 9 * 60 + 30) return "Pre-market";
+  if (minutes < 16 * 60) return "Regular market";
+  if (minutes <= 16 * 60 + 15) return "Post-market";
+  return "Market closed";
 }
 
 function decodeBase64(value: string) {
@@ -52,8 +67,10 @@ export default function App() {
     return "landing";
   });
   const [replay, setReplay] = useState<ReplayState | null>(null);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [scannerRows, setScannerRows] = useState<ScannerRow[]>([]);
   const [prices, setPrices] = useState<PriceQuote[]>([]);
+  const [chart, setChart] = useState<{ symbol: string; bars: PriceBar[] } | null>(null);
+  const [chartError, setChartError] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<Portfolio>(EMPTY_PORTFOLIO);
   const [portfolioWallet, setPortfolioWallet] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
@@ -70,12 +87,12 @@ export default function App() {
   const loadMarket = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     try {
-      const [nextReplay, nextAlerts, nextPrices] = await Promise.all([
+      const [nextReplay, nextScannerRows, nextPrices] = await Promise.all([
         apiRequest<ReplayState>("/replay/state"),
-        apiRequest<Alert[]>("/alerts"),
+        apiRequest<ScannerRow[]>("/scanner"),
         apiRequest<PriceQuote[]>("/prices"),
       ]);
-      setReplay(nextReplay); setAlerts(nextAlerts); setPrices(nextPrices); setError(null);
+      setReplay(nextReplay); setScannerRows(nextScannerRows); setPrices(nextPrices); setError(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "The API is unavailable.");
     } finally {
@@ -89,6 +106,19 @@ export default function App() {
     const timer = window.setInterval(() => void loadMarket(true), 2_000);
     return () => window.clearInterval(timer);
   }, [loadMarket, view]);
+
+  useEffect(() => {
+    if (view !== "scanner" || !replay) return;
+    const controller = new AbortController();
+    setChartError(null);
+    void apiRequest<PriceBar[]>(`/prices/${encodeURIComponent(selectedSymbol)}/history`, { signal: controller.signal })
+      .then((bars) => setChart({ symbol: selectedSymbol, bars }))
+      .catch((requestError: unknown) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setChartError(requestError instanceof Error ? requestError.message : "Could not load the price chart.");
+      });
+    return () => controller.abort();
+  }, [replay, selectedSymbol, view]);
 
   const loadPortfolio = useCallback(async () => {
     if (!wallet) { setPortfolio(EMPTY_PORTFOLIO); setTransactions([]); setPortfolioWallet(null); return; }
@@ -118,13 +148,11 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [loadPortfolio, onLanding, wallet]);
 
-  const selectedAlert = alerts.find((alert) => alert.symbol === selectedSymbol);
   const selectedPrice = prices.find((price) => price.symbol === selectedSymbol);
   const selectedHolding = portfolio.holdings.find((holding) => holding.symbol === selectedSymbol);
   const parsedAmount = Number(amount);
   const estimatedShares = side === "buy" && selectedPrice && parsedAmount > 0 ? parsedAmount / selectedPrice.price : null;
   const estimatedValue = side === "sell" && selectedPrice && parsedAmount > 0 ? parsedAmount * selectedPrice.price : null;
-  const visibleAlerts = useMemo(() => [...alerts].sort((a, b) => b.time.localeCompare(a.time)), [alerts]);
   const portfolioReady = wallet != null && portfolioWallet === wallet;
   const hasValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
   const hasTradeBalance = side === "buy" ? portfolio.cash >= parsedAmount : (selectedHolding?.qty ?? 0) >= parsedAmount;
@@ -264,30 +292,41 @@ export default function App() {
       {view !== "landing" && vaultFeedback && <div className={`vault-feedback ${vaultFeedback.kind}`} role={vaultFeedback.kind === "error" ? "alert" : "status"}><span>{vaultFeedback.message}</span><button aria-label="Dismiss message" onClick={() => setVaultFeedback(null)}>×</button></div>}
 
       {view === "landing" ? <Suspense fallback={<section className="hero-loading" aria-label="Loading interactive hero"><span>↑</span></section>}><HeroSection onLaunchDashboard={() => navigate("dashboard")} onExploreScanner={() => navigate("scanner")} /></Suspense> : view === "scanner" ? <>
-        <section className="hero">
-          <div><p className="eyebrow">Alpaca SIP market replay</p><h1>Trade the signal.<br />Understand the move.</h1><p className="lede">Large-cap momentum alerts backed by real Friday prices, relative volume, and company news.</p><div className="rule-pills"><span>≥ 3% move</span><span>≥ 2× RVOL</span><span>News ≤ 24h</span></div></div>
+        <section className="scanner-overview">
+          <div className="panel alerts-panel">
+            <div className="panel-heading scanner-heading"><div><p className="eyebrow">Alpaca SIP scanner · 7:00 AM–4:15 PM ET</p><h2>Momentum monitor</h2><div className="signal-rules"><span>Momentum ≥ +3%</span><span>Relative volume ≥ 2×</span><span>News checked every 10 min</span></div></div><div className="scanner-heading-actions"><span>{scannerRows.length} stocks · {marketTime(scannerRows[0]?.as_of)} ET</span><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next signal →</button></div></div>
+            {notice && <p className="notice">{notice}</p>}
+            <div className="scanner-list" aria-label="Monitored stock signals">
+              {loading ? <div className="empty-state">Loading scanner…</div> : scannerRows.map((row) => (
+                <div className={`scanner-row ${selectedSymbol === row.symbol ? "selected" : ""} ${row.news_released ? "qualified" : ""}`} key={row.symbol}>
+                  <button className="scanner-select" onClick={() => setSelectedSymbol(row.symbol)} aria-label={`Open ${row.symbol} chart`}>
+                    <span className="ticker">{row.symbol}<small>{row.token_symbol}</small></span>
+                    <span className={row.momentum_pass ? "signal-value pass" : "signal-value"}><b>{signed(row.change_pct, "%")}</b><small>Momentum</small></span>
+                    <span className={row.rvol_pass ? "signal-value pass" : "signal-value"}><b>{row.rvol.toFixed(1)}×</b><small>Rel. volume</small></span>
+                    <span className={`signal-count count-${row.signals_passed}`}><b>{row.signals_passed}/2</b><small>{row.signals_passed === 2 ? "Signal" : "Watching"}</small></span>
+                  </button>
+                  <span className={`scanner-news ${row.news_is_new ? "has-update" : ""}`}>{row.news_released ? (row.headline_url ? <a href={row.headline_url} target="_blank" rel="noreferrer" title={row.headline ?? "Company news"}>{row.news_is_new ? "New news" : "News"} ↗</a> : <small>News pending</small>) : <small>Monitoring</small>}</span>
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="replay-card">
-            <div><span className={replay?.running ? "live-dot running" : "live-dot"} /> {replay?.running ? "Replay running" : "Replay paused"}</div>
+            <div><span className={replay?.running ? "live-dot running" : "live-dot"} /> {replay?.running ? "Replay running" : "Replay paused"}<span className="session-badge">{marketSession(replay?.sim_time)}</span></div>
             <strong>{marketTime(replay?.sim_time)} ET</strong>
             <div className="replay-meta"><span>Friday, Sep 25</span><span>{replay?.speed ?? 30}× speed</span></div>
             <label className="speed-control">Replay speed<select value={replay?.speed ?? 30} disabled={working} onChange={(event) => void controlReplay(replay?.running ? "start" : "pause", Number(event.target.value))}><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option></select></label>
-            <div className="replay-actions"><button className="reset-button" title={portfolio.deposited > 0 ? "Reset is unavailable after demo dollars are deposited" : "Return the replay clock to 9:25 AM"} disabled={working || loading || !canResetTimer} onClick={() => void resetReplayTimer()}>↺ Reset timer</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
+            <div className="replay-actions"><button className="reset-button" title={portfolio.deposited > 0 ? "Reset is unavailable after demo dollars are deposited" : "Return the replay clock to 7:00 AM"} disabled={working || loading || !canResetTimer} onClick={() => void resetReplayTimer()}>↺ Reset timer</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
           </div>
         </section>
 
         <section className="workspace">
-          <div className="panel alerts-panel">
-            <div className="panel-heading"><div><p className="eyebrow">Scanner</p><h2>Momentum alerts</h2></div><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next →</button></div>
-            {notice && <p className="notice">{notice}</p>}
-            <div className="alert-list">
-              {loading ? <div className="empty-state">Loading scanner…</div> : visibleAlerts.length === 0 ? <div className="empty-state"><b>No alerts revealed yet</b><span>Start the replay or jump directly to the first signal.</span></div> : visibleAlerts.map((alert) => (
-                <button className={`alert-row ${selectedSymbol === alert.symbol ? "selected" : ""}`} key={alert.id} onClick={() => setSelectedSymbol(alert.symbol)}>
-                  <span className="ticker">{alert.symbol}<small>{alert.symbol}x-demo</small></span><span><b>{signed(alert.change_pct, "%")}</b><small>Price move</small></span><span><b>{alert.rvol.toFixed(1)}×</b><small>Rel. volume</small></span><time>{marketTime(alert.time)}</time>
-                </button>
-              ))}
+          <section className="panel stock-chart-panel" aria-label={`${selectedSymbol} trading chart`}>
+            <div className="panel-heading stock-chart-heading">
+              <div><p className="eyebrow">Underlying market chart</p><h2>{selectedSymbol} <span>→ {selectedSymbol}x-demo</span></h2></div>
+              <div className="chart-current"><strong>{selectedPrice ? money(selectedPrice.price) : "—"}</strong><small className={selectedPrice && selectedPrice.change_pct < 0 ? "negative" : "positive"}>{selectedPrice ? signed(selectedPrice.change_pct, "% vs. close") : "Waiting for price"}</small></div>
             </div>
-            {selectedAlert?.headline && <a className="headline" href={selectedAlert.headline_url ?? "#"} target="_blank" rel="noreferrer"><span>Qualifying catalyst</span>{selectedAlert.headline}<b>↗</b></a>}
-          </div>
+            <StockChart symbol={selectedSymbol} bars={chart?.symbol === selectedSymbol ? chart.bars : []} loading={chart?.symbol !== selectedSymbol && chartError == null} error={chartError} />
+          </section>
 
           <aside className="panel trade-panel">
             <p className="eyebrow">Trade ticket preview</p>

@@ -24,12 +24,12 @@ The must-have loop works end to end on devnet with Phantom (connect → demo dol
 
 | Piece | Owner | State |
 | --- | --- | --- |
-| Replay clock + prices (`/replay/*`, `/prices`) | Khalil | Working; falls back to placeholder prices until replay bars are loaded |
+| Replay clock + prices (`/replay/*`, `/prices`) | Khalil | Working; serves quotes and chart history from Alpaca bars, with placeholder quotes until replay bars are loaded |
 | Trade log + stats (`/transactions`, `/portfolio`) | Khalil | Working, computed from the ledger |
 | Replay data loader (Alpaca bars, Finnhub news) | Matthew | Working; loads 19 symbols atomically into SQLite |
 | Vault (`/faucet`, `/trade/quote`, `/trade/submit`, `/demo/reset`) | Matthew | Working on devnet. The faucet funds each wallet once; a retried submit never trades twice |
-| Scanner + `/alerts` | Diego | Working; 3 real-data alerts (AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM), revealed by replay time |
-| Frontend | Diego, Justin | Working: scanner (alerts, replay controls, trade ticket through Phantom) and dashboard (account value, stats, account-value chart, holdings, trade log). Average win vs. average loss isn't shown yet |
+| Scanner + `/scanner` + `/alerts` | Diego | Monitors every supported stock each replay minute from the 7:00 AM replay start through 4:15 PM ET; news is released permanently for the replay after momentum and RVOL first pass. The real data produces AKAM and DDOG at 9:30 AM and MSFT at 9:41 AM |
+| Frontend | Diego, Justin | Working: momentum monitor (all-stock signals, ten-minute news updates, line/candlestick Alpaca charts, replay controls, trade ticket through Phantom) and dashboard (account value, stats, account-value chart, holdings, trade log). Average win vs. average loss isn't shown yet |
 | Mints, vault keypair, `mints.json` | Justin | Done on devnet with `scripts/setup_devnet.py` (#9) |
 | Demo seed (`seed_demo.py`) | Matthew | Working; pre-runs the non-live demo trades with the demo wallet |
 
@@ -85,7 +85,7 @@ From `backend/`, with the API running:
 ./venv/bin/python -m scripts.seed_demo               # reset, burn leftovers, pre-run the non-live trades
 ```
 
-`seed_demo.py` leaves the replay paused at 9:25 AM, ready for the live trade. `--dry-run` prices the script from SQLite without touching the chain. The full run sheet is the demo script in [`docs/BUILD_SPEC.md`](docs/BUILD_SPEC.md#demo-script).
+`seed_demo.py` leaves the replay paused at 7:00 AM, ready to show how early news gives pre-market traders an edge before the live trade. `--dry-run` prices the script from SQLite without touching the chain. The full run sheet is the demo script in [`docs/BUILD_SPEC.md`](docs/BUILD_SPEC.md#demo-script).
 
 ## Repo layout
 

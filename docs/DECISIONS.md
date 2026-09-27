@@ -1,6 +1,6 @@
 # Decisions, research and open items
 
-Companion to `BUILD_SPEC.md` (what we're building). This file records **why**, what we researched, and what's still unverified. Last updated Sat Sept 26, 2026, 11:25 PM ET. Both Saturday checkpoints passed: the 6:00 PM one (vault test run, scanner on real bars) and the 10:30 PM one (the must-have loop, end to end on devnet). Rows 18–22 were decided during the build.
+Companion to `BUILD_SPEC.md` (what we're building). This file records **why**, what we researched, and what's still unverified. Last updated Sun Sept 27, 2026. Both Saturday checkpoints passed: the 6:00 PM one (vault test run, scanner on real bars) and the 10:30 PM one (the must-have loop, end to end on devnet). Rows 18–23 were decided during the build.
 
 ## Decision log
 
@@ -13,7 +13,7 @@ Settled with the team in a question-by-question review (Sept 25–26). Later dec
 | 3 | Issuer / stock list | **xStocks**, 19 hand-picked names | Ondo doesn't list AKAM, DDOG or ZS, which were Friday's movers |
 | 4 | Audience | International users locked out of US markets. Demo persona: **Sofía in Argentina** (hyperinflation). Ukraine and Nigeria mentioned in the pitch | **China and Cuba dropped**: Cuba is under comprehensive US (OFAC) sanctions; Ondo excludes China incl. Hong Kong, Cuba, and occupied Ukrainian regions |
 | 5 | User | Both first-time investors and active traders; demo shows Sofía growing from saver to trader | No separate "saver" screen; the pesos → dollars value is told in the pitch |
-| 6 | Scanner rules | Large-cap version: RVOL ≥ 2, up ≥ 3%, news catalyst; price and float filters dropped | Large caps rarely hit RVOL 5 or +10% |
+| 6 | Scanner rules | Large-cap version: RVOL ≥ 2 and up ≥ 3%; unlock company news after both pass. Price and float filters dropped | Large caps rarely hit RVOL 5 or +10%. News explains a signal but does not prevent the market-data signal from firing |
 | 7 | Backtesting | **Dropped.** Replaced by per-trade and portfolio stats | Simpler; the trade log validates the strategy |
 | 8 | Stats | Total P/L ($, %), average win vs. average loss, number of trades, account-value chart (Robinhood-style) | Average cost method, so buys and sells are logged separately |
 | 9 | Trades | **Long only**; each buy and sell is its own transaction; P/L via average cost | Short selling would need collateral tracking |
@@ -30,6 +30,7 @@ Settled with the team in a question-by-question review (Sept 25–26). Later dec
 | 20 | Faucet | Each wallet gets $1,000 once (409 `already_funded` until `/demo/reset`); on stage Khalil points at the seeded deposit instead of clicking (#20) | A second deposit dwarfed the live trade on the account-value chart and halved total P/L % |
 | 21 | Retried submits | The backend never trades a quote twice: a repeat returns the same row, waits (`submit_in_progress`), or checks the signature it already sent. The ticket resubmits the same quote for up to 2 minutes after `chain_unavailable`, `submit_in_progress` or a dropped connection, and re-quotes only on `quote_expired` or `tx_failed` (#17, #21, #22) | A lost reply or a devnet hiccup mid-trade must not lose or double a trade. 2 minutes outlasts the quote's blockhash, after which the backend can say for sure whether the trade landed |
 | 22 | SQLite access | One connection per thread, WAL mode (#19) | A shared connection made `/portfolio` and `/transactions` return 500 under the UI's 2-second polling |
+| 23 | Scanner charts and hours | Chart all 19 supported stocks from Alpaca minute bars; keep 4:00 AM bars for full-session calculations, but start/reset the visible replay at 7:00 AM and run through 4:15 PM ET | Token prices remain grounded in their underlying stocks while the shorter replay still demonstrates the pre-market news edge |
 
 ## Independent review (Sept 26) — all applied to the spec
 

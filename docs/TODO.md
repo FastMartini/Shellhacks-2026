@@ -35,7 +35,7 @@ All done; see Done (#19, #21).
 - [ ] **Justin** · Devpost draft: description, the two reference repos listed as external code, all 4 collaborators, repo link, Discord tag.
 - [ ] **Justin** · Opt into **Blackstone** and **MLH Best Use of Solana** on Devpost. Without this we aren't judged for either.
 - [ ] **Khalil, Matthew** · Decide what the demo opens on. #23 makes the landing page the default view, so the run sheet either starts there and clicks through, or opens on `#dashboard` and saves the hero for the end.
-- [ ] **Matthew** · Pre-demo run sheet: vault has devnet SOL, `seed_demo.py` (it runs `/demo/reset` and burns leftovers itself), demo wallet connected in Phantom, replay paused at 9:25 AM.
+- [ ] **Matthew** · Pre-demo run sheet: vault has devnet SOL, `seed_demo.py` (it runs `/demo/reset` and burns leftovers itself), demo wallet connected in Phantom, replay paused at 7:00 AM.
 - [ ] **Everyone** · 9:00 AM feature freeze: bug fixes only. Rehearse 3 times with a reset between runs and record a backup screen video.
 - [ ] **Justin** · Submit on Devpost by **10:30 AM** (code freeze 11:00 AM).
 

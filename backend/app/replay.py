@@ -13,7 +13,7 @@ class ReplayClock:
         self.reset()
 
     def reset(self) -> None:
-        """Back to 9:25 AM, paused, default speed."""
+        """Back to the 7:00 AM demo start, paused, at default speed."""
         self.speed = config.DEFAULT_SPEED
         self.running = False
         self._anchor_sim = config.REPLAY_START
@@ -25,10 +25,10 @@ class ReplayClock:
             return self._anchor_sim
         elapsed = (self._now() - self._anchor_wall) * self.speed
         t = self._anchor_sim + timedelta(seconds=elapsed)
-        if t >= config.MARKET_CLOSE:
-            # Stop at the close and stay there.
-            self._freeze(config.MARKET_CLOSE)
-            return config.MARKET_CLOSE
+        if t >= config.SCANNER_CLOSE:
+            # Keep the scanner moving through its short post-close window.
+            self._freeze(config.SCANNER_CLOSE)
+            return config.SCANNER_CLOSE
         return t
 
     def _freeze(self, at: datetime) -> None:
@@ -37,7 +37,7 @@ class ReplayClock:
         self.running = False
 
     def start(self) -> None:
-        if self.running or self.sim_time >= config.MARKET_CLOSE:
+        if self.running or self.sim_time >= config.SCANNER_CLOSE:
             return
         self._anchor_sim = self.sim_time
         self._anchor_wall = self._now()
@@ -53,9 +53,8 @@ class ReplayClock:
         self.speed = max(config.MIN_SPEED, min(config.MAX_SPEED, speed))
 
     def seek(self, to: datetime) -> None:
-        """Jump to `to` (clamped to 4:00 AM–4:00 PM on the replay day) and pause."""
-        day_start = config.REPLAY_START.replace(hour=4, minute=0)
-        to = max(day_start, min(config.MARKET_CLOSE, to.astimezone(config.ET)))
+        """Jump to `to` (clamped to 4:00 AM–4:15 PM on the replay day) and pause."""
+        to = max(config.PREMARKET_OPEN, min(config.SCANNER_CLOSE, to.astimezone(config.ET)))
         self._freeze(to)
 
     def state(self) -> dict:

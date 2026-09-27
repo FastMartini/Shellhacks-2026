@@ -59,3 +59,24 @@ def quote(symbol: str, sim_time: datetime, conn: sqlite3.Connection | None = Non
         "change_pct": round((price / prev - 1) * 100, 2) if prev else 0.0,
         "sim_time": config.iso(sim_time),
     }
+
+
+def history(symbol: str, sim_time: datetime, conn: sqlite3.Connection | None = None) -> list[dict]:
+    """Alpaca minute bars reached by the replay clock during the scanner window."""
+    cutoff = min(sim_time.astimezone(config.ET), config.SCANNER_CLOSE)
+    rows = _conn(conn).execute(
+        "SELECT ts, open, high, low, close, volume FROM bars "
+        "WHERE symbol = ? AND ts >= ? AND ts <= ? ORDER BY ts",
+        (symbol, config.iso(config.PREMARKET_OPEN), config.iso(cutoff)),
+    ).fetchall()
+    return [
+        {
+            "time": row["ts"],
+            "open": round(row["open"], 4) if row["open"] is not None else round(row["close"], 4),
+            "high": round(row["high"], 4) if row["high"] is not None else round(row["close"], 4),
+            "low": round(row["low"], 4) if row["low"] is not None else round(row["close"], 4),
+            "close": round(row["close"], 4),
+            "volume": row["volume"],
+        }
+        for row in rows
+    ]

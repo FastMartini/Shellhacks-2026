@@ -30,9 +30,9 @@ def conn():
     db.use(None)
 
 
-def test_clock_starts_paused_at_925():
+def test_clock_starts_paused_at_demo_start():
     c = ReplayClock(FakeTime())
-    assert c.state() == {"mode": "replay", "sim_time": "2026-09-25T09:25:00-04:00", "speed": 30, "running": False}
+    assert c.state() == {"mode": "replay", "sim_time": "2026-09-25T07:00:00-04:00", "speed": 30, "running": False}
 
 
 def test_clock_advances_at_speed_and_pauses():
@@ -40,20 +40,20 @@ def test_clock_advances_at_speed_and_pauses():
     c = ReplayClock(ft)
     c.start()
     ft.t = 10  # 10 s wall × 30 = 5 sim minutes
-    assert c.sim_time == et(9, 30)
+    assert c.sim_time == et(7, 5)
     c.pause()
     ft.t = 100
-    assert c.sim_time == et(9, 30)
+    assert c.sim_time == et(7, 5)
 
 
 def test_speed_change_keeps_elapsed_time():
     ft = FakeTime()
     c = ReplayClock(ft)
     c.start()
-    ft.t = 10  # 9:30 at 30×
+    ft.t = 10  # 7:05 at 30×
     c.set_speed(60)
     ft.t = 20  # +10 min at 60×
-    assert c.sim_time == et(9, 40)
+    assert c.sim_time == et(7, 15)
 
 
 def test_clock_stops_at_close():
@@ -61,8 +61,16 @@ def test_clock_stops_at_close():
     c = ReplayClock(ft)
     c.start()
     ft.t = 10_000
-    assert c.sim_time == config.MARKET_CLOSE
+    assert c.sim_time == config.SCANNER_CLOSE
     assert c.running is False
+
+
+def test_seek_clamps_to_scanner_window():
+    c = ReplayClock(FakeTime())
+    c.seek(et(3, 0))
+    assert c.sim_time == config.PREMARKET_OPEN
+    c.seek(et(18, 0))
+    assert c.sim_time == config.SCANNER_CLOSE
 
 
 def test_price_at_uses_prev_close_then_last_bar(conn):
@@ -79,7 +87,7 @@ def test_price_at_uses_prev_close_then_last_bar(conn):
 
 def test_http_contracts(conn):
     api = TestClient(app)
-    assert api.get("/replay/state").json()["sim_time"] == "2026-09-25T09:25:00-04:00"
+    assert api.get("/replay/state").json()["sim_time"] == "2026-09-25T07:00:00-04:00"
 
     state = api.post("/replay/control", json={"action": "seek", "to": "2026-09-25T10:00:00-04:00"}).json()
     assert state == {"mode": "replay", "sim_time": "2026-09-25T10:00:00-04:00", "speed": 30, "running": False}
@@ -87,7 +95,22 @@ def test_http_contracts(conn):
     rows = api.get("/prices").json()
     assert len(rows) == 19 and set(rows[0]) == {"symbol", "price", "prev_close", "change_pct", "sim_time"}
 
+    conn.executemany(
+        "INSERT INTO bars VALUES ('AKAM', ?, 115, 119, 114, ?, ?)",
+        [
+            (config.iso(et(9, 30)), 115.0, 500),
+            (config.iso(et(9, 32)), 118.0, 300),
+            (config.iso(et(10, 1)), 117.0, 200),
+        ],
+    )
+    history = api.get("/prices/AKAM/history").json()
+    assert len(history) == 2
+    assert set(history[0]) == {"time", "open", "high", "low", "close", "volume"}
+
     r = api.get("/prices/NOPE")
+    assert r.status_code == 404 and r.json()["error"] == "unknown_symbol"
+
+    r = api.get("/prices/NOPE/history")
     assert r.status_code == 404 and r.json()["error"] == "unknown_symbol"
 
     r = api.post("/replay/control", json={"action": "jump"})

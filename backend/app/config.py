@@ -9,9 +9,11 @@ load_dotenv()
 ET = ZoneInfo("America/New_York")
 
 REPLAY_DATE = date(2026, 9, 25)
-REPLAY_START = datetime.combine(REPLAY_DATE, time(9, 25), tzinfo=ET)
+PREMARKET_OPEN = datetime.combine(REPLAY_DATE, time(4, 0), tzinfo=ET)
+REPLAY_START = datetime.combine(REPLAY_DATE, time(7, 0), tzinfo=ET)
 MARKET_OPEN = datetime.combine(REPLAY_DATE, time(9, 30), tzinfo=ET)
 MARKET_CLOSE = datetime.combine(REPLAY_DATE, time(16, 0), tzinfo=ET)
+SCANNER_CLOSE = datetime.combine(REPLAY_DATE, time(16, 15), tzinfo=ET)
 
 DEFAULT_SPEED = 30
 MIN_SPEED, MAX_SPEED = 1, 60
@@ -25,6 +27,7 @@ SYMBOLS = [
 MIN_CHANGE_PCT = 3.0
 MIN_RVOL = 2.0
 NEWS_LOOKBACK_HOURS = 24
+NEWS_CHECK_INTERVAL_MINUTES = 10
 
 # Prefer a catalyst that names the company represented by the stock. Short
 # tickers such as ZS are intentionally omitted because substring matching them
