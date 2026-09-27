@@ -196,9 +196,9 @@ Every trade is one devnet transaction with both sides in it. **Sofía signs firs
 
 A blockhash expires in about a minute, so quotes expire after 30 seconds and the ticket re-quotes.
 
-**Phantom on devnet** may show the mock tokens as "Unknown token" and may not display the fee. Either add token names and logos (Metaplex metadata, a stretch item) or say it in the demo: "these are our test tokens."
+**Phantom on devnet** shows the mock tokens as "Unknown token" with a "null" symbol, but it does show the fee (tested Sept 26). Either add token names and logos (Metaplex metadata, a stretch item) or say it in the demo: "these are our test tokens."
 
-**Test run by 6 PM Saturday (Matthew):** one hard-coded buy of 1 `AKAMx-demo` through this exact path (Phantom signs first, backend co-signs and submits) on devnet. Check that Phantom shows no red warning. If Phantom refuses a transaction someone else pays the fee for, fall back to Sofía paying her own fee with 0.05 devnet SOL sent by the faucet.
+**Test run by 6 PM Saturday (Matthew):** one hard-coded buy of 1 `AKAMx-demo` through this exact path (Phantom signs first, backend co-signs and submits) on devnet. Done Sept 26: the buy lands, but Phantom shows a red "Failed to simulate the results of this request" warning. It also says "You don't have enough SOL" and makes her click "Confirm (unsafe)". The same warning appears when Sofía pays her own fee and on a plain burn she signs alone, so that fallback doesn't help. Devnet's own simulation passes all three. Decision: keep one transaction with the vault paying, and explain the warning in the demo.
 
 **Demo wallet and seed data (Matthew):** make the demo wallet with `solana-keygen` and import its key into Phantom, so `seed_demo.py` can pre-run the scripted non-live trades with the same key. Use `/demo/reset` or a fresh keypair for each rehearsal.
 
@@ -244,7 +244,7 @@ The critical path runs through Matthew: the bar download and the vault test both
 | --- | --- | --- | --- | --- |
 | Sat 2:45–3:30 | **Everyone:** fund the vault with devnet SOL in the first 10 minutes; agree on this doc's contracts and SQLite schema; create the repo; stub every endpoint with fake data; share `.env` keys (Alpaca, Finnhub, Helius) | | | |
 | Sat 3:30–6:00 | FastAPI skeleton with CORS, `price_at` + replay clock (stub by 4:30) | React + Vite scaffold, Phantom connect, scanner rules config | Download Friday SIP bars + news; vault test run (Phantom signs first) | Mints + vault keypair by 4:45, then wallet button and transaction table |
-| **Sat 6:00 PM checkpoint** | Vault test run passes with no Phantom warning? Scanner fires 3–6 alerts on the real bars? Demo trades scripted against real prices? If not, everyone helps fix that first | | | |
+| **Sat 6:00 PM checkpoint** | Vault test run lands (Phantom's devnet warning is expected)? Scanner fires 3–6 alerts on the real bars? Demo trades scripted against real prices? If not, everyone helps fix that first | | | |
 | Sat 6:00–6:30 | Dinner | | | |
 | Sat 6:30–10:30 | Ledger, average cost, `/transactions`, `/portfolio` | Scanner service + `/alerts`; trade ticket screen | `/faucet`, `/trade/quote`, `/trade/submit` | Front-end help; peso-vs-dollar data for slides |
 | **Sat 10:30 PM checkpoint** | Must-have loop works end to end, rough: connect → demo dollars → buy → sell → log → total P/L | | | |
@@ -263,7 +263,7 @@ Three minutes, three speakers, **one live trade**. Before walking up: `/demo/res
 | --- | --- | --- | --- |
 | 0:00–0:20 | Justin | Slide: peso vs. dollar | Sofía in Argentina watched her savings lose value and can't open a US brokerage account |
 | 0:20–0:40 | Khalil | Phantom connected, "Get demo dollars" | Her pesos become digital dollars. The wallet is her account; no signup |
-| 0:40–1:40 | Diego | Start the replay, jump to the scripted alert (AKAM if the bars allow it), buy, approve once in Phantom, jump ahead, sell. Open Solana Explorer | The scanner flags momentum with a real catalyst. The trade confirmed in about a second, and the fee is a fraction of a cent |
+| 0:40–1:40 | Diego | Start the replay, jump to the scripted alert (AKAM if the bars allow it), buy, click "Confirm (unsafe)" on Phantom's red warning, jump ahead, sell the same way. Open Solana Explorer | The scanner flags momentum with a real catalyst. Phantom warns because it can't simulate our devnet test tokens; we pay the fee, so she needs no SOL. The trade confirmed in about a second, and the fee is a fraction of a cent |
 | 1:40–2:20 | Khalil | Stats page with the seeded trades plus the live one, account-value chart | Her log shows what's working: total P/L, average win vs. average loss |
 | 2:20–2:40 | Justin | Slide: what's next | Real xStocks through Jupiter, live mode, short selling, more countries |
 | 2:40–3:00 | — | Buffer | Questions, or recovery if something breaks |
@@ -277,7 +277,7 @@ If the chart or average win/loss (Nice tier) didn't make it, Khalil shows the tr
 | Risk | Fallback |
 | --- | --- |
 | Vault test run fails by 6 PM | Khalil pairs with Matthew. If still stuck by 8 PM: two separate transfers instead of one, with a manual refund button |
-| Phantom shows a red warning or refuses a transaction the vault pays for | Confirm Phantom signs first. If it still refuses, the faucet sends Sofía 0.05 devnet SOL and she pays her own fee |
+| Phantom shows a red "Failed to simulate" warning (it did on every layout in the Sept 26 test) | Keep one transaction with the vault paying; Sofía paying her own fee doesn't remove it. Click "Confirm (unsafe)" and say the demo script's line about it |
 | Phantom shows "Unknown token" | Add token metadata (stretch), or say "these are our test tokens" |
 | Real bars don't support the AKAM story | Script the live trade on whichever stock rose cleanly after its alert |
 | Devnet or RPC slow on stage | Helius key instead of the public RPC; phone hotspot; backup video |

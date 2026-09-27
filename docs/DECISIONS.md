@@ -63,8 +63,8 @@ Settled with the team in a question-by-question review (Sept 25–26). Later dec
 ## Still unverified — check first
 
 - [x] Friday minute bars produce 3 alerts with the agreed rules: AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM. Entry/exit rehearsal still needs to select the cleanest trade.
-- [ ] Phantom signs a vault-fee-payer transaction without a warning (the 6 PM checkpoint test run)
-- [ ] Phantom devnet display ("Unknown token", missing fee)
+- [x] Phantom signs a vault-fee-payer transaction without a warning (the 6 PM checkpoint test run). **No: it shows a red "Failed to simulate the results of this request" and "You don't have enough SOL", then blocks behind "Confirm (unsafe)".** Tested Sept 26 with `backend/scripts/phantom_check.py`. The same warning appears when she pays the fee, and even on a plain burn she signs alone with 0.05 SOL, so it is Phantom's simulator on our devnet tokens, not the layout. Devnet's own `simulateTransaction` passes all three and each lands when confirmed. Decision: keep one transaction with the vault paying; say it in the demo. Also found: Phantom adds its own compute-budget instructions unless the transaction sets them, which broke the quote match, so `chain.swap_message` sets them.
+- [x] Phantom devnet display: mints show as "Unknown Token" with a "null" symbol; the fee is shown.
 - [ ] Whether xStocks is available in Argentina, Ukraine and Nigeria (don't claim it until checked)
 - [ ] SpaceX appears on xStocks per the team, but it has no replayable market data; keep it off the list
 
