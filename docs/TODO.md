@@ -16,6 +16,7 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 - [ ] **Matthew** · Merge #13 (real `/faucet`, `/trade/quote`, `/trade/submit`, `seed_demo.py`). Diego approved it; it's 8 commits behind `main`, so merge `main` in and rerun `pytest` first.
 - [ ] **Diego** · Open a PR for `fix/ui-changes` (Get demo dollars, quote → Phantom signs → submit, re-quote on `quote_expired`). Merge `main` in after #13 lands.
 - [ ] **Justin** · Add `SOLANA_RPC_URL` (Helius devnet URL) and `VAULT_KEYPAIR` to `backend/.env.example`. Everyone puts the Helius URL in `backend/.env`, and in `frontend/.env` as `VITE_SOLANA_RPC_URL`.
+- [ ] **Khalil** · Stop sharing one SQLite connection across threads (`backend/app/db.py`, `get()`). `/portfolio` and `/transactions` run in FastAPI's threadpool on a single `check_same_thread=False` connection, so the app's 2 s polling hits `sqlite3.InterfaceError` and returns 500: 20 of 563 requests in a local load test. That flickers the "Backend unavailable" banner and is what turns a successful faucet into #16's false "stub route" error. Use a connection per thread or a lock around each query, and make sure `ledger.record` (called from the async vault routes) can't hit the same error after a trade lands. (#16 review)
 - [ ] **Everyone** · Run the loop on devnet with Phantom (Testnet Mode on): connect → Get demo dollars → buy → click "Confirm (unsafe)" → sell → the log row has an explorer link → total P/L updates.
 - [ ] **Matthew** · Add #13's error codes to the vault contract in the spec, both copies (see [Changing a contract](../CONTRIBUTING.md#changing-a-contract)). The ticket shows these messages.
 
@@ -23,10 +24,13 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 
 - [ ] **Diego, Matthew** · Pick the live demo trade: stock, buy minute and sell minute, checked against the real bars. `seed_demo.py` already uses AKAM as the loss, so per the spec the live trade is MSFT or DDOG. Write it into the spec's demo script (both copies).
 - [ ] **Diego** · Demo reset button in the UI that calls `/demo/reset`. Today's "Reset timer" only moves the clock and is disabled after a deposit. Optional if `seed_demo.py` covers every rehearsal.
+- [ ] **Khalil, Matthew** · Decide the demo's faucet beat. `seed_demo.py` already deposits $1,000 at 6:00, so clicking "Get demo dollars" on stage makes a second deposit: the account-value chart jumps from about $993 to $1,993, which dwarfs the live trade, and total P/L % halves. Skip the click and point at the seeded deposit, do it on a fresh wallet, or chart P/L instead of account value. Write the choice into the spec's demo script (both copies). (#16 review)
 
 ## Nice tier (only after the 10:30 PM checkpoint passes)
 
 - [ ] **Diego, Justin** · Show average win vs. average loss on the dashboard. `/portfolio` already returns `stats.avg_win` and `stats.avg_loss`; the UI shows only win and loss counts. Khalil's 1:40 demo line needs these.
+- [ ] **Khalil** · `/portfolio` rounds `cash` to the cent, but sells leave sub-cent units, so typing the full displayed cash can fail with "That costs $X but the wallet has $X". Floor spendable cash in `stats.portfolio`. (#16 review)
+- [ ] **Diego** · Portfolio load errors use the market "Backend unavailable" banner, which the market poll clears every 2 s, and its Retry reloads only market data. Give the portfolio its own error state, or have Retry reload both. (#16 review)
 
 ## Demo, pitch and submission (Sunday)
 
@@ -47,6 +51,7 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 ## Open questions
 
 - `seed_demo.py` seeds MSTR (win), AKAM (loss) and NVDA (held), all between 6:03 and 9:10 AM, before any alert fires. MSTR and NVDA never alert. Is that the story we want on the stats page, or should the seeded trades follow alerts?
+- "Reset timer" rewinds the replay clock that every wallet shares, and it only checks that the connected wallet has no deposits. If a judge connects a fresh wallet and resets, the demo wallet's next trades are stamped before its earlier ones and the stats replay them out of order (a losing round trip can show as a win). Hide the button during judging, or have the backend refuse to seek back past any ledger row? (#16 review)
 - The seeded log ends at −$7.07 total P/L (dry run). Does the live trade's gain turn that positive?
 - Is xStocks available in Argentina, Ukraine and Nigeria? Unverified, so don't claim it in the pitch or on Devpost.
 
