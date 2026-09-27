@@ -279,7 +279,7 @@ export default function App() {
   const canResetTimer = connected && portfolioReady && replay != null && portfolio.deposited === 0 && new Date(replay.sim_time).getTime() > REPLAY_START_MS;
 
   return (
-    <main className={view === "landing" ? "landing-page" : undefined}>
+    <main className={view === "landing" ? "landing-page" : "app-page"}>
       <header className="topbar">
         <a className="brand" href="/" onClick={(event) => { event.preventDefault(); navigate("landing"); }}>
           <svg className="brand-mark" viewBox="0 0 36 38" aria-hidden="true">

@@ -1,8 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Manrope:wght@600;700;800&display=swap");
 
-:root { font-family: "DM Sans", sans-serif; color: #eaf4ef; background: #07100d; font-synthesis: none; text-rendering: optimizeLegibility; }
+:root { font-family: "Geist", sans-serif; color: #f2f5f3; background: #050807; font-synthesis: none; text-rendering: optimizeLegibility; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 70% -10%, #18382c 0, #07100d 42%); }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(ellipse 48% 36% at 76% 8%, #0e2a1f 0%, transparent 75%), radial-gradient(ellipse 34% 30% at 8% 85%, #0a1c24 0%, transparent 75%), #050807; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .55; }
@@ -251,6 +251,73 @@ input:focus { border-color: #6cf2a6; }
 .transaction-empty { padding: 38px 24px; color: #70837a; border-top: 1px solid #ffffff0d; text-align: center; }
 .transaction-note { margin: 0; padding: 13px 24px; color: #65766e; border-top: 1px solid #ffffff0d; font-size: 11px; }
 
+/* Scanner and dashboard carry the hero's glass, typography, and rounded controls. */
+.app-page { color: #f2f5f3; font-family: "Geist", sans-serif; }
+.app-page .topbar { height: 64px; gap: 14px; margin-top: 20px; padding: 0 12px 0 20px; border: 1px solid #ffffff14; border-radius: 999px; background: #0b100e99; -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.app-page .brand { font-size: 18px; }
+.app-page .brand-mark { width: 30px; height: 32px; }
+.app-page .main-nav { gap: 2px; padding: 0; border: 0; background: none; }
+.app-page .main-nav button { padding: 8px 16px; color: #93a39b; border-radius: 999px; font-size: 14px; font-weight: 400; white-space: nowrap; transition: color .2s ease, background .2s ease; }
+.app-page .main-nav button:hover { color: #f2f5f3; background: #ffffff0d; }
+.app-page .main-nav button.active { color: #f2f5f3; background: #ffffff12; }
+.app-page .network-pill { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border: 0; background: #ffffff08; font: 12px "Geist Mono", monospace; white-space: nowrap; }
+.app-page .network-pill i { width: 6px; height: 6px; margin-right: 0; }
+.app-page .wallet-adapter-button { height: 42px !important; padding: 0 20px !important; border: 1px solid #ffffff26 !important; border-radius: 999px !important; color: #f2f5f3 !important; background: #ffffff0f !important; font-size: 14px !important; font-weight: 500 !important; white-space: nowrap; transition: background .2s ease; }
+.app-page .wallet-adapter-button:not([disabled]):hover { background: #ffffff1c !important; }
+.app-page :is(button, input, select, a):focus-visible { outline: 2px solid #a4ffd0; outline-offset: 3px; }
+
+.app-page h1, .app-page h2 { color: #f2f5f3; font-family: "Geist", sans-serif; font-weight: 400; letter-spacing: -.04em; }
+.app-page .portfolio-hero { min-height: 350px; gap: 42px; }
+.app-page .portfolio-hero h1 { max-width: 690px; color: transparent; background: linear-gradient(105deg, #f2f5f3 42%, #a4ffd0 100%); -webkit-background-clip: text; background-clip: text; font-size: clamp(46px, 5vw, 70px); font-weight: 300; line-height: 1; letter-spacing: -.05em; text-wrap: balance; }
+.app-page .portfolio-hero .lede { max-width: 560px; color: #93a39b; font-weight: 300; line-height: 1.6; }
+.app-page .eyebrow { display: flex; align-items: center; gap: 10px; color: #8fe8b8; font: 11px "Geist Mono", monospace; letter-spacing: .17em; }
+.app-page .eyebrow::before { flex: none; width: 6px; height: 6px; content: ""; background: #6cf2a6; transform: rotate(45deg); }
+.app-page :is(.panel, .stat-card, .market-strip, .replay-card, .account-value) { border: 1px solid #ffffff16; background: #0b100ec7; box-shadow: 0 18px 50px #00000036; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.app-page .panel, .app-page .market-strip, .app-page .replay-card, .app-page .account-value { border-radius: 22px; }
+.app-page .stat-card { border-radius: 18px; }
+.app-page .panel h2, .app-page .market-strip h2 { font-size: 25px; font-weight: 400; }
+.app-page .account-value { padding: 28px; }
+.app-page .account-value span { color: #91a69a; font: 11px "Geist Mono", monospace; letter-spacing: .1em; text-transform: uppercase; }
+.app-page .account-value strong { color: #f2f5f3; font: 300 clamp(40px, 4vw, 54px) "Geist", sans-serif; letter-spacing: -.055em; }
+.app-page .stat-card span { color: #91a69a; font: 11px "Geist Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+.app-page .stat-card strong { font: 400 29px "Geist", sans-serif; letter-spacing: -.035em; }
+.app-page .stat-card small { color: #93a39b; }
+.app-page .replay-card strong { font: 300 36px "Geist", sans-serif; letter-spacing: -.04em; }
+.app-page .scanner-heading h2 { font-size: clamp(28px, 3vw, 36px); font-weight: 300; }
+.app-page .scanner-heading-actions { color: #93a39b; font: 10px "Geist Mono", monospace; }
+.app-page .signal-rules span, .app-page .range-pill, .app-page .session-badge { color: #a6b7af; border: 1px solid #ffffff1a; border-radius: 999px; background: #ffffff07; font: 10px "Geist Mono", monospace; }
+.app-page .session-badge { padding: 5px 9px; color: #a4ffd0; border-color: #a4ffd044; background: #a4ffd00b; }
+.app-page .scanner-row { border-color: #ffffff0c; border-radius: 14px; background: #ffffff05; transition: border-color .2s ease, background .2s ease; }
+.app-page .scanner-row:hover { border-color: #ffffff28; background: #ffffff09; }
+.app-page .scanner-row.selected { border-color: #a4ffd080; background: #a4ffd00b; }
+.app-page .scanner-row.news-active:not(.selected) { border-color: #6cf2a633; }
+.app-page .ticker { font: 500 16px "Geist Mono", monospace; }
+.app-page .ticker small, .app-page .scanner-select small { color: #83978b; font-family: "Geist Mono", monospace; font-size: 9px; }
+.app-page .scanner-news a { color: #06100b; border-radius: 999px; background: #a4ffd0; font-weight: 600; }
+.app-page .scanner-news small { color: #93a39b; }
+.app-page .primary, .app-page .play-button { color: #05110b; border: 1px solid #eefbf4; border-radius: 999px; background: #eefbf4; box-shadow: 0 12px 30px #6cf2a622; font-weight: 500; transition: transform .2s ease, box-shadow .2s ease; }
+.app-page .primary:hover:not(:disabled), .app-page .play-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 16px 36px #6cf2a63d; }
+.app-page .reset-button, .app-page .text-button { color: #f2f5f3; border: 1px solid #ffffff24; border-radius: 999px; background: #ffffff08; font-weight: 500; transition: border-color .2s ease, background .2s ease; }
+.app-page .reset-button:hover:not(:disabled), .app-page .text-button:hover:not(:disabled) { border-color: #a4ffd080; background: #ffffff10; }
+.app-page .text-button { display: inline-flex; align-items: center; justify-content: center; padding: 8px 13px; font-size: 11px; }
+.app-page .speed-control select, .app-page input { color: #f2f5f3; border-color: #ffffff24; border-radius: 12px; background: #ffffff07; }
+.app-page .segmented { border: 1px solid #ffffff12; border-radius: 999px; background: #ffffff07; }
+.app-page .segmented button { border-radius: 999px; }
+.app-page .segmented .active { color: #05110b; background: #a4ffd0; }
+.app-page .segmented .active.sell { color: #fff0ee; background: #ad5248; }
+.app-page .chart-ranges { border-radius: 999px; background: #ffffff07; }
+.app-page .chart-ranges button, .app-page .chart-expand-button, .app-page .chart-window-buttons button { border-radius: 999px; font-family: "Geist", sans-serif; }
+.app-page .chart-ranges button.active { background: #a4ffd0; }
+.app-page .price-grid button { border-color: #ffffff12; border-radius: 14px; background: #ffffff05; transition: border-color .2s ease, background .2s ease; }
+.app-page .price-grid button:hover { border-color: #ffffff30; background: #ffffff0b; }
+.app-page .price-grid button.active { border-color: #a4ffd080; background: #a4ffd00b; }
+.app-page .transaction-table th { color: #93a39b; background: #ffffff06; font-family: "Geist Mono", monospace; }
+.app-page .transaction-side { border-radius: 999px; }
+.app-page .transaction-table a { color: #a4ffd0; }
+.app-page .asset-icon { background: #a4ffd0; box-shadow: 0 0 20px #6cf2a62a; }
+.app-page .chart-dialog { border-radius: 22px; background: #0b100e; }
+.app-page .chart-dialog h2 { font-family: "Geist", sans-serif; font-weight: 400; }
+
 @media (max-width: 800px) {
   main { width: min(100% - 24px, 640px); }
   .network-pill { display: none; }
@@ -264,6 +331,8 @@ input:focus { border-color: #6cf2a6; }
   .chart-dialog-content { padding: 18px; }
   .chart-candle-details { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .landing-page .network-pill { display: none; }
+  .app-page .network-pill { display: none; }
+  .app-page .portfolio-hero { gap: 24px; padding: 42px 0 26px; }
   .landing-hero { align-items: flex-start; min-height: max(100vh, 860px); min-height: max(100svh, 860px); padding-top: 148px; }
   .hero-copy { width: min(610px, 100%); }
   .scene-fallback span { top: auto; right: 24px; bottom: 48px; left: auto; width: 96px; height: 96px; border-radius: 28px; font-size: 60px; transform: none; }
@@ -296,6 +365,12 @@ input:focus { border-color: #6cf2a6; }
   .landing-page .topbar { top: 12px; gap: 8px; padding: 0 8px 0 12px; }
   .landing-page .main-nav button { padding: 8px 10px; }
   .landing-page .wallet-adapter-button { padding: 0 14px !important; font-size: 13px !important; }
+  .app-page .topbar { gap: 8px; padding: 0 8px 0 12px; }
+  .app-page .main-nav button { padding: 8px 10px; }
+  .app-page .wallet-adapter-button { padding: 0 14px !important; font-size: 13px !important; }
+  .app-page .portfolio-hero h1 { font-size: clamp(40px, 12vw, 56px); }
+  .app-page .portfolio-hero .lede { font-size: 16px; }
+  .app-page .account-value { padding: 22px; }
   .hero-copy h1 { font-size: clamp(40px, 12vw, 56px); }
   .hero-copy .lede { font-size: 16px; }
   .hero-actions { align-items: stretch; flex-direction: column; }
@@ -307,6 +382,9 @@ input:focus { border-color: #6cf2a6; }
   .landing-page .topbar { gap: 4px; padding: 0 6px 0 8px; }
   .landing-page .main-nav button { padding: 8px 6px; font-size: 12px; }
   .landing-page .wallet-adapter-button { padding: 0 10px !important; font-size: 12px !important; }
+  .app-page .topbar { gap: 4px; padding: 0 6px 0 8px; }
+  .app-page .main-nav button { padding: 8px 6px; font-size: 12px; }
+  .app-page .wallet-adapter-button { padding: 0 10px !important; font-size: 12px !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
