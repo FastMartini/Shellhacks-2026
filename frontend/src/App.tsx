@@ -245,7 +245,13 @@ export default function App() {
   return (
     <main className={view === "landing" ? "landing-page" : undefined}>
       <header className="topbar">
-        <a className="brand" href="/" onClick={(event) => { event.preventDefault(); navigate("landing"); }}><span className="brand-mark">M</span><span>Momentum</span></a>
+        <a className="brand" href="/" onClick={(event) => { event.preventDefault(); navigate("landing"); }}>
+          <svg className="brand-mark" viewBox="0 0 36 38" aria-hidden="true">
+            <path d="M18 2 34 10.5v17L18 36 2 27.5v-17L18 2Z" fill="none" stroke="currentColor" strokeWidth="1.2" />
+            <text x="18" y="26" textAnchor="middle" fontFamily="Manrope, sans-serif" fontSize="21" fontWeight="800" fill="currentColor">M</text>
+          </svg>
+          <span className="brand-name">Momentum<span>X</span></span>
+        </a>
         <nav className="main-nav" aria-label="Primary navigation">
           <button className={view === "dashboard" ? "active" : ""} onClick={() => navigate("dashboard")}>Dashboard</button>
           <button className={view === "scanner" ? "active" : ""} onClick={() => navigate("scanner")}>Scanner</button>

@@ -10,8 +10,9 @@ main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding-bottom: 56
 main.landing-page { position: relative; padding-bottom: 0; }
 
 .topbar { height: 88px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid #ffffff14; }
-.brand { display: flex; align-items: center; gap: 11px; margin-right: auto; color: inherit; text-decoration: none; font: 700 20px Manrope, sans-serif; }
-.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: #07100d; background: #6cf2a6; }
+.brand { display: flex; align-items: center; gap: 11px; margin-right: auto; color: #e9edfb; text-decoration: none; font: 800 20px Manrope, sans-serif; letter-spacing: -.04em; }
+.brand-mark { display: block; flex: none; width: 34px; height: 36px; color: #83f3bf; }
+.brand-name > span { color: #83f3bf; }
 .main-nav { display: flex; gap: 4px; margin-right: 8px; padding: 4px; border: 1px solid #ffffff10; border-radius: 10px; background: #ffffff05; }
 .main-nav button { padding: 8px 14px; color: #879991; border: 0; border-radius: 7px; background: transparent; font-size: 13px; font-weight: 700; }
 .main-nav button.active { color: #eaf4ef; background: #ffffff10; }
@@ -22,8 +23,8 @@ main.landing-page { position: relative; padding-bottom: 0; }
 
 /* Landing: a full-bleed scene with the topbar floating over it as a glass pill. */
 .landing-page .topbar { position: absolute; z-index: 3; top: 20px; right: 0; left: 0; height: 64px; gap: 14px; padding: 0 12px 0 20px; border: 1px solid #ffffff14; border-radius: 999px; background: #0b100e99; -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
-.landing-page .brand { color: #f2f5f3; font: 500 17px "Geist", sans-serif; letter-spacing: -.01em; }
-.landing-page .brand-mark { width: 30px; height: 30px; border-radius: 9px; color: #05110b; background: linear-gradient(160deg, #a4ffd0, #3fd98a); font-size: 15px; font-weight: 600; }
+.landing-page .brand { font-size: 18px; }
+.landing-page .brand-mark { width: 30px; height: 32px; }
 .landing-page .main-nav { gap: 2px; padding: 0; border: 0; background: none; }
 .landing-page .main-nav button { padding: 8px 16px; color: #93a39b; border-radius: 999px; font-size: 14px; font-weight: 400; white-space: nowrap; transition: color .2s ease, background .2s ease; }
 .landing-page .main-nav button:hover { color: #f2f5f3; background: #ffffff0d; }
