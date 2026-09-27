@@ -40,9 +40,10 @@ The backend is one FastAPI app, with one router file per owner:
 | --- | --- | --- |
 | Replay clock, prices | Khalil | `backend/app/replay.py`, `prices.py`, `routers/replay.py` |
 | Ledger, stats | Khalil | `backend/app/ledger.py`, `stats.py`, `routers/portfolio.py` |
-| Alerts, scanner | Diego | `backend/app/routers/alerts.py` (+ scanner module and rules config) |
-| Vault, replay data loader | Matthew | `backend/app/routers/vault.py` (+ vault and loader modules) |
-| Frontend | Diego, Justin | `frontend/` |
+| Alerts, scanner | Diego | `backend/app/scanner.py`, `routers/alerts.py`; thresholds in `config.py` |
+| Vault, replay data loader | Matthew | `backend/app/routers/vault.py`, `chain.py`, `load_replay.py`, `scripts/seed_demo.py`, `scripts/demo_wallet.py` |
+| Devnet setup | Justin | `backend/scripts/setup_devnet.py`, `mints.json` |
+| Frontend | Diego, Justin | `frontend/src/` (`App.tsx`, `api/`, `components/`) |
 
 Rules that keep the pieces fitting together:
 
@@ -90,5 +91,5 @@ If an endpoint's request or response shape, or the schema, has to change:
 ## Ground rules
 
 - **Fresh code only.** high-momentum-scanner and quantsim are for reference; don't copy from them.
-- **Ship stubs first.** Every endpoint starts as a stub returning fake data in exactly the contract's shape, so the frontend never waits on the backend.
+- **Ship stubs first.** A new endpoint starts as a stub returning fake data in exactly the contract's shape, so the frontend never waits on the backend. (Every endpoint in the spec is real now.)
 - **Stuck for more than 20 minutes?** Say so in the team chat. The critical path runs through the vault and the replay data, so everyone helps there first.

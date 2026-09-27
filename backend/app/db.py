@@ -6,6 +6,7 @@ Eastern offset, e.g. 2026-09-25T09:31:00-04:00, so they compare correctly as tex
 """
 
 import sqlite3
+import threading
 
 from . import config
 
@@ -67,19 +68,27 @@ def init(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-_conn: sqlite3.Connection | None = None
+_pinned: sqlite3.Connection | None = None
+_local = threading.local()
 
 
 def get() -> sqlite3.Connection:
-    """The process-wide connection (uvicorn runs a single worker)."""
-    global _conn
-    if _conn is None:
-        _conn = connect()
-        init(_conn)
-    return _conn
+    """This thread's connection. Sync routes run in FastAPI's threadpool, and one sqlite3 connection
+    shared across threads raises InterfaceError under the app's 2 s polling. WAL lets those reads run
+    while the vault writes a ledger row."""
+    if _pinned is not None:
+        return _pinned
+    conn = getattr(_local, "conn", None)
+    if conn is None:
+        conn = connect()
+        conn.execute("PRAGMA journal_mode=WAL")
+        init(conn)
+        _local.conn = conn
+    return conn
 
 
-def use(conn: sqlite3.Connection) -> None:
-    """Swap the process-wide connection, for tests."""
-    global _conn
-    _conn = conn
+def use(conn: sqlite3.Connection | None) -> None:
+    """Pin one connection for every thread, for tests (an in-memory DB is per connection). None unpins."""
+    global _pinned, _local
+    _pinned = conn
+    _local = threading.local()

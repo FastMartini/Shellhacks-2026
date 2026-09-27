@@ -6,7 +6,8 @@ Before walking up: start the API, run this, then connect the demo wallet in Phan
    her on-chain balance, so leftovers would skew the live trade's P/L.
 3. Seeks the replay to each scripted time and trades through the real API, the same path as the front-end:
    /faucet, /trade/quote, sign with her key as Phantom would, /trade/submit. An expired quote is re-quoted and
-   a failed transaction is retried; both changed nothing on-chain.
+   a failed transaction is retried; both changed nothing on-chain. If devnet stops answering mid-trade, the same
+   submit is sent again, which checks whether the trade landed instead of trading twice.
 4. Seeks back to 9:25 AM, paused, ready for the live trade.
 
 Run from backend/ with the API up (uvicorn app.main:app) on the same machine, since step 2 uses the vault key:
@@ -48,8 +49,8 @@ SCRIPT = [  # (time ET, symbol, side, usd_amount; None sells everything)
     ("09:10", "NVDA", "buy", 150),
 ]
 ATTEMPTS = 3
-# Safe to retry: an expired quote or a failed transaction left the chain as it was. chain_unavailable is not:
-# the trade may have landed, so the script stops and says to check the log.
+# Safe to re-quote: an expired quote or a failed transaction left the chain as it was. chain_unavailable is not:
+# the trade may have landed, so trade() submits the same quote again, which checks.
 RETRYABLE = {"quote_expired", "tx_failed"}
 BURNS_PER_TX = 6  # keeps each burn transaction under Solana's 1,232-byte limit
 
@@ -111,7 +112,15 @@ def trade(api: Api, kp: Keypair, symbol: str, side: str, usd: float | None) -> d
         if q.is_error:
             return q
         q = q.json()
-        return api.post("/trade/submit", {"quote_id": q["quote_id"], "signed_tx_base64": sign(q["tx_base64"], kp)})
+        submit = {"quote_id": q["quote_id"], "signed_tx_base64": sign(q["tx_base64"], kp)}
+        r = api.post("/trade/submit", submit)
+        for _ in range(ATTEMPTS - 1):  # lost touch mid-trade: the same submit checks whether it landed
+            if r.is_success or r.json().get("error") != "chain_unavailable":
+                break
+            print(f"  {side} {symbol}: {r.json()['message']}")
+            wall.sleep(2)
+            r = api.post("/trade/submit", submit)
+        return r
 
     return api.retrying(f"{side} {symbol}", once)
 

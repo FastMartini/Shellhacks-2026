@@ -4,6 +4,7 @@ import { Transaction } from "@solana/web3.js";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiRequestError, apiRequest } from "./api/client";
+import { submitSignedTrade } from "./api/trade";
 import type { Alert, FaucetResponse, Portfolio, PriceQuote, ReplayState, TradeQuote, TransactionRow } from "./api/types";
 import { EquityChart } from "./components/EquityChart";
 import { StatCard } from "./components/StatCard";
@@ -201,12 +202,10 @@ export default function App() {
 
     setVaultAction("submit");
     try {
-      return await apiRequest<TransactionRow>("/trade/submit", {
-        method: "POST",
-        body: JSON.stringify({ quote_id: quote.quote_id, signed_tx_base64: signedTxBase64 }),
-      });
+      return await submitSignedTrade(quote.quote_id, signedTxBase64);
     } catch (requestError) {
-      if (retryExpired && requestError instanceof ApiRequestError && requestError.status === 409 && requestError.code === "quote_expired") {
+      // Nothing changed on-chain: re-quote and sign once more.
+      if (retryExpired && requestError instanceof ApiRequestError && (requestError.code === "quote_expired" || requestError.code === "tx_failed")) {
         return signAndSubmitTrade(false);
       }
       throw requestError;
@@ -298,7 +297,7 @@ export default function App() {
       </> : <>
         <section className="portfolio-hero">
           <div><p className="eyebrow">Your account</p><h1>{connected ? "Portfolio overview" : "Your investing story starts here."}</h1><p className="lede">Track demo-dollar cash, tokenized stock positions, and account performance throughout the replay.</p></div>
-          <div className="account-value"><span>Total account value</span><strong>{money(portfolio.total_value)}</strong><small className={portfolio.stats.total_pl >= 0 ? "positive" : "negative"}>{signed(portfolio.stats.total_pl, " total return")}</small><button className="primary faucet-button" disabled={!connected || vaultAction != null} onClick={() => void getDemoDollars()}>{vaultAction === "faucet" ? "Adding demo dollars…" : connected ? "Get 1,000 demo dollars" : "Connect wallet first"}</button></div>
+          <div className="account-value"><span>Total account value</span><strong>{money(portfolio.total_value)}</strong><small className={portfolio.stats.total_pl >= 0 ? "positive" : "negative"}>{signed(portfolio.stats.total_pl, " total return")}</small><button className="primary faucet-button" disabled={!connected || !portfolioReady || portfolio.deposited > 0 || vaultAction != null} onClick={() => void getDemoDollars()}>{vaultAction === "faucet" ? "Adding demo dollars…" : !connected ? "Connect wallet first" : portfolio.deposited > 0 ? `${money(portfolio.deposited)} in demo dollars added` : "Get 1,000 demo dollars"}</button></div>
         </section>
         <section className="stats-grid">
           <StatCard label="Portfolio value" value={money(portfolio.total_value)} detail={connected ? "Connected account" : "Connect Phantom to load"} />
