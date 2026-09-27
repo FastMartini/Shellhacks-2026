@@ -92,7 +92,7 @@ h1 { max-width: 760px; font-size: clamp(40px, 5.2vw, 68px); line-height: 1.02; l
 .live-dot.running { animation: pulse 1.5s infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 18px #6cf2a6; opacity: .65; } }
 
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
 .stat-card { padding: 20px; border-radius: 14px; }
 .stat-card span, .stat-card small { display: block; color: #8fa198; }
 .stat-card span { font-size: 13px; }

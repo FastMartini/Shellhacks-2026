@@ -25,6 +25,11 @@ function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 }
 
+function signedMoney(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${value >= 0 ? "+" : ""}${money(value)}`;
+}
+
 function signed(value: number, suffix = "") {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}${suffix}`;
 }
@@ -354,9 +359,11 @@ export default function App() {
         </section>
         <section className="stats-grid">
           <StatCard label="Portfolio value" value={money(portfolio.total_value)} detail={connected ? "Connected account" : "Connect Phantom to load"} />
-          <StatCard label="Total return" value={`${portfolio.stats.total_pl >= 0 ? "+" : ""}${money(portfolio.stats.total_pl)}`} detail={signed(portfolio.stats.total_pl_pct, "% all time")} tone={portfolio.stats.total_pl > 0 ? "positive" : portfolio.stats.total_pl < 0 ? "negative" : undefined} />
+          <StatCard label="Total return" value={signedMoney(portfolio.stats.total_pl)} detail={signed(portfolio.stats.total_pl_pct, "% all time")} tone={portfolio.stats.total_pl > 0 ? "positive" : portfolio.stats.total_pl < 0 ? "negative" : undefined} />
           <StatCard label="Available cash" value={money(portfolio.cash)} detail="dUSD balance" />
-          <StatCard label="Trades" value={String(portfolio.stats.trade_count)} detail={`${portfolio.stats.win_count} wins · ${portfolio.stats.loss_count} losses`} />
+          <StatCard label="Trades" value={String(portfolio.stats.trade_count)} detail="Total transactions" />
+          <StatCard label="Average Win" value={signedMoney(portfolio.stats.avg_win)} detail={portfolio.stats.avg_win == null ? "No winning trades yet" : "Per winning trade"} tone={portfolio.stats.avg_win != null && portfolio.stats.avg_win > 0 ? "positive" : undefined} />
+          <StatCard label="Average Loss" value={signedMoney(portfolio.stats.avg_loss)} detail={portfolio.stats.avg_loss == null ? "No losing trades yet" : "Per losing trade"} tone={portfolio.stats.avg_loss != null && portfolio.stats.avg_loss < 0 ? "negative" : undefined} />
         </section>
         <section className="portfolio-grid">
           <article className="panel chart-panel"><div className="panel-heading"><div><p className="eyebrow">Performance</p><h2>Account value</h2></div><span className="range-pill">Replay day</span></div><EquityChart points={portfolio.equity_curve} /></article>
