@@ -6,6 +6,7 @@ Read before doing anything:
 
 - `docs/BUILD_SPEC.md`: the source of truth. Scope, architecture, API contracts, SQLite schema, scanner rules, vault flow, stats math, owners, timeline, demo script, risks. The live, team-editable version is https://claude.ai/code/artifact/3854c60f-284b-46e2-8c67-0fd57b3845b7; if the two differ, the live doc wins (re-read it with the Claude Docs connector).
 - `docs/DECISIONS.md`: why each decision was made, research findings, review fixes, and what's still unverified.
+- `docs/TODO.md`: the running to-do list (what's next, who owns it, open questions). Pick work from it, and check off or add items in the same PR as the work.
 
 Ground rules:
 
