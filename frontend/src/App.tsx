@@ -4,6 +4,7 @@ import { Transaction } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiRequestError, apiRequest } from "./api/client";
+import { submitSignedTrade } from "./api/trade";
 import type { Alert, FaucetResponse, Portfolio, PriceQuote, ReplayState, TradeQuote, TransactionRow } from "./api/types";
 import { EquityChart } from "./components/EquityChart";
 import { StatCard } from "./components/StatCard";
@@ -16,9 +17,6 @@ const EMPTY_PORTFOLIO: Portfolio = {
 };
 
 const REPLAY_START_MS = new Date("2026-09-25T09:25:00-04:00").getTime();
-// Resubmits of the same quote after chain_unavailable or submit_in_progress (spec section 3).
-const SUBMIT_ATTEMPTS = 3;
-const SUBMIT_RETRY_MS = 2000;
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -196,23 +194,14 @@ export default function App() {
     const signedTxBase64 = encodeBase64(signedTransaction.serialize({ requireAllSignatures: false, verifySignatures: false }));
 
     setVaultAction("submit");
-    const body = JSON.stringify({ quote_id: quote.quote_id, signed_tx_base64: signedTxBase64 });
-    for (let attempt = 1; ; attempt++) {
-      try {
-        return await apiRequest<TransactionRow>("/trade/submit", { method: "POST", body });
-      } catch (requestError) {
-        if (!(requestError instanceof ApiRequestError)) throw requestError;
-        // The trade may have landed, so submit the same quote again and let the backend check; never re-quote here.
-        if ((requestError.code === "chain_unavailable" || requestError.code === "submit_in_progress") && attempt < SUBMIT_ATTEMPTS) {
-          await new Promise((resolve) => setTimeout(resolve, SUBMIT_RETRY_MS));
-          continue;
-        }
-        // Nothing changed on-chain: re-quote and sign once more.
-        if (retryExpired && (requestError.code === "quote_expired" || requestError.code === "tx_failed")) {
-          return signAndSubmitTrade(false);
-        }
-        throw requestError;
+    try {
+      return await submitSignedTrade(quote.quote_id, signedTxBase64);
+    } catch (requestError) {
+      // Nothing changed on-chain: re-quote and sign once more.
+      if (retryExpired && requestError instanceof ApiRequestError && (requestError.code === "quote_expired" || requestError.code === "tx_failed")) {
+        return signAndSubmitTrade(false);
       }
+      throw requestError;
     }
   }
 
