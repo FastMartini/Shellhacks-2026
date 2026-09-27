@@ -2,7 +2,7 @@
 
 What's left before the Sunday 10:30 AM submission, in the order it has to happen. Scope and contracts live in [`BUILD_SPEC.md`](BUILD_SPEC.md); this file only tracks who is doing what next.
 
-Last updated: Sat Sept 26, 11:25 PM ET. **The 10:30 PM checkpoint passed at 10:35 PM**: the must-have loop works end to end on devnet (connect → demo dollars → buy → sell → log → total P/L), so Nice-tier work can start. Next deadline: 9:00 AM Sunday feature freeze.
+Last updated: Sun Sept 27, 12:53 AM ET. **The 10:30 PM checkpoint passed at 10:35 PM**: the must-have loop works end to end on devnet (connect → demo dollars → buy → sell → log → total P/L), so Nice-tier work can start. Next deadline: 9:00 AM Sunday feature freeze.
 
 **How to use it**
 
@@ -23,6 +23,8 @@ All done; see Done (#19, #21).
 
 ## Nice tier (only after the 10:30 PM checkpoint passes)
 
+- [ ] **Anyone** · Pick the hero arrow weight on a real screen. #23 ships Round 4a ("bold") from the Claude Design project; 4b ("heavy") is one word away: set `ARROW` to `ARROW_PRESETS.heavy` in `MomentumArrow.tsx`.
+- [ ] **Diego** · Match the dashboard and scanner to the landing hero's style: Geist and Geist Mono type, the near-black `#050807` background with the green glow, the glass pill topbar, pill buttons, mono uppercase eyebrows and the `#a4ffd0` accent. Today those rules are scoped to `.landing-page` in `styles.css`, so clicking through from the landing switches back to DM Sans, Manrope and the old topbar. Mostly a matter of promoting those rules to the whole app and restyling cards and tables to fit. Land it before the 9:00 AM feature freeze, and rerun the must-have loop afterwards.
 - [ ] **Diego, Justin** · Show average win vs. average loss on the dashboard. `/portfolio` already returns `stats.avg_win` and `stats.avg_loss`; the UI shows only win and loss counts. Khalil's 1:40 demo line needs these.
 - [ ] **Khalil** · `/portfolio` rounds `cash` to the cent, but sells leave sub-cent units, so typing the full displayed cash can fail with "That costs $X but the wallet has $X". Floor spendable cash in `stats.portfolio`. (#16 review)
 - [ ] **Diego** · Portfolio load errors use the market "Backend unavailable" banner, which the market poll clears every 2 s, and its Retry reloads only market data. Give the portfolio its own error state, or have Retry reload both. (#16 review)
@@ -32,6 +34,7 @@ All done; see Done (#19, #21).
 - [ ] **Justin** · Slides: peso vs. dollar (0:00), what's next (2:20).
 - [ ] **Justin** · Devpost draft: description, the two reference repos listed as external code, all 4 collaborators, repo link, Discord tag.
 - [ ] **Justin** · Opt into **Blackstone** and **MLH Best Use of Solana** on Devpost. Without this we aren't judged for either.
+- [ ] **Khalil, Matthew** · Decide what the demo opens on. #23 makes the landing page the default view, so the run sheet either starts there and clicks through, or opens on `#dashboard` and saves the hero for the end.
 - [ ] **Matthew** · Pre-demo run sheet: vault has devnet SOL, `seed_demo.py` (it runs `/demo/reset` and burns leftovers itself), demo wallet connected in Phantom, replay paused at 9:25 AM.
 - [ ] **Everyone** · 9:00 AM feature freeze: bug fixes only. Rehearse 3 times with a reset between runs and record a backup screen video.
 - [ ] **Justin** · Submit on Devpost by **10:30 AM** (code freeze 11:00 AM).
@@ -39,6 +42,7 @@ All done; see Done (#19, #21).
 ## Docs and housekeeping
 
 - [ ] **Matthew** · `backend`, `dev`, `matthew-wallet` and `solana-testing` are gone. Still on GitHub: `docs/todo-list` and `feature/vault-functions` (both fully merged) and `revert-13-feature/vault-functions` (only a revert of #13, never merged). Delete them once you've confirmed nothing on them is needed.
+- [ ] **Anyone** · Delete `frontend/src/App 2.tsx` and `frontend/src/styles 2.css`. Stale leftovers from the original Vite scaffold, untracked and deliberately left out of #23.
 
 ## Open questions
 
@@ -56,6 +60,8 @@ All done; see Done (#19, #21).
 
 | When (ET) | What | PR |
 | --- | --- | --- |
+| Sun 12:40 AM | Landing hero restyled to the reviewed design (Round 4a): platinum coins, bold zigzag arrow, glass topbar, proof row removed; the arrow and coins now shrink as one group on phones | #23 |
+| Sat 11:43 PM | Landing hero: animated momentum scene, lazy-loaded, with a reduced-motion and no-WebGL fallback | #23 |
 | Sat 11:25 PM | Docs match the build: README status, setup and demo prep; CONTRIBUTING file map; `DECISIONS.md` rows 18–22 and the alerts on the real bars; spec (both copies) setup checklist ticked, scanner results, seeded demo trades, demo-script prep and live trade (MSFT or DDOG) | #22 |
 | Sat 11:14 PM | Trade ticket resubmits the same quote for up to 2 minutes, past the blockhash's life, instead of 3 tries, and after a dropped connection to the backend too. Gives up with "check Phantom", not "submit again" (#21 review) | #22 |
 | Sat 11:04 PM | `/faucet` funds each wallet once (409 `already_funded` until `/demo/reset`); the button then reads "demo dollars added" and Khalil points at the seeded deposit on stage | #20 |

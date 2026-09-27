@@ -1,7 +1,7 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Transaction } from "@solana/web3.js";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiRequestError, apiRequest } from "./api/client";
 import { submitSignedTrade } from "./api/trade";
@@ -9,6 +9,8 @@ import type { Alert, FaucetResponse, Portfolio, PriceQuote, ReplayState, TradeQu
 import { EquityChart } from "./components/EquityChart";
 import { StatCard } from "./components/StatCard";
 import { TransactionTable } from "./components/TransactionTable";
+
+const HeroSection = lazy(() => import("./components/HeroSection").then((module) => ({ default: module.HeroSection })));
 
 const EMPTY_PORTFOLIO: Portfolio = {
   cash: 0, holdings: [], total_value: 0, deposited: 0,
@@ -44,7 +46,11 @@ function encodeBase64(value: Uint8Array) {
 export default function App() {
   const { publicKey, connected, signTransaction } = useWallet();
   const wallet = publicKey?.toBase58();
-  const [view, setView] = useState<"dashboard" | "scanner">(() => window.location.hash === "#scanner" ? "scanner" : "dashboard");
+  const [view, setView] = useState<"landing" | "dashboard" | "scanner">(() => {
+    if (window.location.hash === "#scanner") return "scanner";
+    if (window.location.hash === "#dashboard") return "dashboard";
+    return "landing";
+  });
   const [replay, setReplay] = useState<ReplayState | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [prices, setPrices] = useState<PriceQuote[]>([]);
@@ -78,10 +84,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (view === "landing") return;
     void loadMarket();
     const timer = window.setInterval(() => void loadMarket(true), 2_000);
     return () => window.clearInterval(timer);
-  }, [loadMarket]);
+  }, [loadMarket, view]);
 
   const loadPortfolio = useCallback(async () => {
     if (!wallet) { setPortfolio(EMPTY_PORTFOLIO); setTransactions([]); setPortfolioWallet(null); return; }
@@ -98,13 +105,18 @@ export default function App() {
     }
   }, [wallet]);
 
+  // The landing page shows no portfolio data, so an auto-connected wallet must
+  // not start polling the backend there. A boolean, not `view`, so moving
+  // between the dashboard and the scanner doesn't reset the portfolio.
+  const onLanding = view === "landing";
   useEffect(() => {
+    if (onLanding) return;
     setPortfolioWallet(null);
     if (!wallet) { setPortfolio(EMPTY_PORTFOLIO); setTransactions([]); return; }
     void loadPortfolio();
     const timer = window.setInterval(() => void loadPortfolio(), 2_000);
     return () => window.clearInterval(timer);
-  }, [loadPortfolio, wallet]);
+  }, [loadPortfolio, onLanding, wallet]);
 
   const selectedAlert = alerts.find((alert) => alert.symbol === selectedSymbol);
   const selectedPrice = prices.find((price) => price.symbol === selectedSymbol);
@@ -118,9 +130,9 @@ export default function App() {
   const hasTradeBalance = side === "buy" ? portfolio.cash >= parsedAmount : (selectedHolding?.qty ?? 0) >= parsedAmount;
   const canTrade = Boolean(wallet && signTransaction && selectedPrice && portfolioReady && hasValidAmount && hasTradeBalance);
 
-  function navigate(nextView: "dashboard" | "scanner") {
+  function navigate(nextView: "landing" | "dashboard" | "scanner") {
     setView(nextView);
-    window.history.replaceState(null, "", nextView === "scanner" ? "#scanner" : "#dashboard");
+    window.history.replaceState(null, "", nextView === "landing" ? `${window.location.pathname}${window.location.search}` : `#${nextView}`);
   }
 
   async function controlReplay(action: "start" | "pause", speed?: number) {
@@ -231,9 +243,9 @@ export default function App() {
   const canResetTimer = connected && portfolioReady && replay != null && portfolio.deposited === 0 && new Date(replay.sim_time).getTime() > REPLAY_START_MS;
 
   return (
-    <main>
+    <main className={view === "landing" ? "landing-page" : undefined}>
       <header className="topbar">
-        <a className="brand" href="#dashboard" onClick={(event) => { event.preventDefault(); navigate("dashboard"); }}><span className="brand-mark">M</span><span>Momentum</span></a>
+        <a className="brand" href="/" onClick={(event) => { event.preventDefault(); navigate("landing"); }}><span className="brand-mark">M</span><span>Momentum</span></a>
         <nav className="main-nav" aria-label="Primary navigation">
           <button className={view === "dashboard" ? "active" : ""} onClick={() => navigate("dashboard")}>Dashboard</button>
           <button className={view === "scanner" ? "active" : ""} onClick={() => navigate("scanner")}>Scanner</button>
@@ -242,10 +254,10 @@ export default function App() {
         <WalletMultiButton />
       </header>
 
-      {error && <div className="error-banner" role="alert"><span><b>Backend unavailable.</b> {error}</span><button onClick={() => void loadMarket()}>Retry</button></div>}
-      {vaultFeedback && <div className={`vault-feedback ${vaultFeedback.kind}`} role={vaultFeedback.kind === "error" ? "alert" : "status"}><span>{vaultFeedback.message}</span><button aria-label="Dismiss message" onClick={() => setVaultFeedback(null)}>×</button></div>}
+      {view !== "landing" && error && <div className="error-banner" role="alert"><span><b>Backend unavailable.</b> {error}</span><button onClick={() => void loadMarket()}>Retry</button></div>}
+      {view !== "landing" && vaultFeedback && <div className={`vault-feedback ${vaultFeedback.kind}`} role={vaultFeedback.kind === "error" ? "alert" : "status"}><span>{vaultFeedback.message}</span><button aria-label="Dismiss message" onClick={() => setVaultFeedback(null)}>×</button></div>}
 
-      {view === "scanner" ? <>
+      {view === "landing" ? <Suspense fallback={<section className="hero-loading" aria-label="Loading interactive hero"><span>↑</span></section>}><HeroSection onLaunchDashboard={() => navigate("dashboard")} onExploreScanner={() => navigate("scanner")} /></Suspense> : view === "scanner" ? <>
         <section className="hero">
           <div><p className="eyebrow">Alpaca SIP market replay</p><h1>Trade the signal.<br />Understand the move.</h1><p className="lede">Large-cap momentum alerts backed by real Friday prices, relative volume, and company news.</p><div className="rule-pills"><span>≥ 3% move</span><span>≥ 2× RVOL</span><span>News ≤ 24h</span></div></div>
           <div className="replay-card">
