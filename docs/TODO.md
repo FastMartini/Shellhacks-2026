@@ -49,7 +49,7 @@ Last updated: Sat Sept 26, 9:34 PM ET. **Next checkpoint: 10:30 PM**, when the m
 - `seed_demo.py` seeds MSTR (win), AKAM (loss) and NVDA (held), all between 6:03 and 9:10 AM, before any alert fires. MSTR and NVDA never alert. Is that the story we want on the stats page, or should the seeded trades follow alerts?
 - The seeded log ends at −$7.07 total P/L (dry run). Does the live trade's gain turn that positive?
 - Is xStocks available in Argentina, Ukraine and Nigeria? Unverified, so don't claim it in the pitch or on Devpost.
-- Quote checks read only on-chain balances, but the ledger is the source of truth. After a bare `/demo/reset`, `sell_all` sells leftover shares as a fake win, and a buy can take ledger cash negative. Check the ledger too, or make "reset means rerun `seed_demo.py`" the rule? (#13 review)
+- Quote checks read only on-chain balances, but the ledger is the source of truth. After a bare `/demo/reset`, `sell_all` sells leftover shares as a fake win, and a buy can take ledger cash negative. Check the ledger too, or make "reset means rerun `seed_demo.py`" the rule? (#13 review) Related: `/faucet` answers 502 "try again" when its mint may have landed, so a retry can mint another $1,000 with only the second in the ledger. (#17 review)
 
 ## Cut
 
