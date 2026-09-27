@@ -2,7 +2,7 @@
 
 What's left before the Sunday 10:30 AM submission, in the order it has to happen. Scope and contracts live in [`BUILD_SPEC.md`](BUILD_SPEC.md); this file only tracks who is doing what next.
 
-Last updated: Sat Sept 26, 10:45 PM ET. **The 10:30 PM checkpoint passed at 10:35 PM**: the must-have loop works end to end on devnet (connect → demo dollars → buy → sell → log → total P/L), so Nice-tier work can start. Next deadline: 9:00 AM Sunday feature freeze.
+Last updated: Sat Sept 26, 11:20 PM ET. **The 10:30 PM checkpoint passed at 10:35 PM**: the must-have loop works end to end on devnet (connect → demo dollars → buy → sell → log → total P/L), so Nice-tier work can start. Next deadline: 9:00 AM Sunday feature freeze.
 
 **How to use it**
 
@@ -50,7 +50,7 @@ All done; see Done (#19, #21).
 - "Reset timer" rewinds the replay clock that every wallet shares, and it only checks that the connected wallet has no deposits. If a judge connects a fresh wallet and resets, the demo wallet's next trades are stamped before its earlier ones and the stats replay them out of order (a losing round trip can show as a win). Hide the button during judging, or have the backend refuse to seek back past any ledger row? (#16 review)
 - The seeded log ends at −$7.07 total P/L (dry run). Does the live trade's gain turn that positive?
 - Is xStocks available in Argentina, Ukraine and Nigeria? Unverified, so don't claim it in the pitch or on Devpost.
-- Quote checks read only on-chain balances, but the ledger is the source of truth. After a bare `/demo/reset`, `sell_all` sells leftover shares as a fake win, and a buy can take ledger cash negative. Check the ledger too, or make "reset means rerun `seed_demo.py`" the rule? (#13 review) Related: `/faucet` answers 502 "try again" when its mint may have landed, so a retry can mint another $1,000 with only the second in the ledger. (#17 review)
+- Quote checks read only on-chain balances, but the ledger is the source of truth. After a bare `/demo/reset`, `sell_all` sells leftover shares as a fake win, and a buy can take ledger cash negative. Check the ledger too, or make "reset means rerun `seed_demo.py`" the rule? (#13 review) Related: `/faucet` answers 502 "try again" when its mint may have landed, so a retry can mint another $1,000 with only the second in the ledger. (#17 review) Also: if devnet stays unreachable for over 2 minutes mid-submit, the ticket gives up, and a trade that landed has no ledger row. (#21 review)
 
 ## Cut
 
@@ -60,6 +60,7 @@ All done; see Done (#19, #21).
 
 | When (ET) | What | PR |
 | --- | --- | --- |
+| Sat 11:20 PM | Trade ticket resubmits the same quote for up to 2 minutes, past the blockhash's life, instead of 3 tries, and after a dropped connection to the backend too. Gives up with "check Phantom", not "submit again" (#21 review) | #22 |
 | Sat 10:45 PM | Trade ticket resubmits the same quote on `502 chain_unavailable` / `409 submit_in_progress` and re-quotes on `quote_expired` or `tx_failed`; `backend/.env.example` has `SOLANA_RPC_URL` and `VAULT_KEYPAIR` | #21 |
 | Sat 10:35 PM | 10:30 PM checkpoint passed: Khalil ran the loop on devnet with Phantom (connect → demo dollars → buy → sell → log with explorer link → total P/L), backend on #19's branch, 1,165 requests all 200 | #21 |
 | Sat 10:25 PM | One SQLite connection per thread plus WAL: `/portfolio` and `/transactions` no longer 500 under polling (load test: 50 of 900 before, 0 after) | #19 |
