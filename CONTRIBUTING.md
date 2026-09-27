@@ -17,6 +17,7 @@ How the four of us work in this repo during ShellHacks 2026. Keep it fast, but k
 1. Read [`docs/BUILD_SPEC.md`](docs/BUILD_SPEC.md). It's the source of truth for scope, API contracts and the SQLite schema. The live, team-editable version is linked at the top of that file; if the two differ, the live doc wins.
 2. Stay inside the priority tiers in the spec. When time runs short, cut from the bottom. Never cut the must-have loop.
 3. Set up your machine with the steps in the [README](README.md#run-it-locally).
+4. Pick your next task from [`docs/TODO.md`](docs/TODO.md), the running to-do list. Items are grouped by checkpoint and tier, with an owner on each.
 
 ## Branches
 
@@ -81,6 +82,7 @@ If an endpoint's request or response shape, or the schema, has to change:
    - **What** changed and why
    - **How you tested it**
    - **Follow-ups**, if anything is stubbed or waiting on someone else
+   - The matching [`docs/TODO.md`](docs/TODO.md) change: check off what you finished (add the PR number) and add any follow-ups as new items
 3. Request a review from the owner of any code you touched. Tag them if it blocks them.
 4. Merge once it's approved and checks pass. Near a checkpoint, a quick "looks good" from anyone is enough; don't block on reviews.
 5. Delete the branch after merging.

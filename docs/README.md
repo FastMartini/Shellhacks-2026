@@ -6,4 +6,5 @@ Feature-specific handoffs should be added on the branch that contains the corres
 
 - `BUILD_SPEC.md`: the build spec and source of truth (scope, contracts, schema, timeline, demo script).
 - `DECISIONS.md`: why each decision was made, research findings, and open items.
+- `TODO.md`: the running to-do list, with owners, checkpoints and open questions.
 - `shellhacks-project.md`: project summary and settled decisions.
