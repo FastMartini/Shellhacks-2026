@@ -86,6 +86,27 @@ def _news_identity(row: sqlite3.Row | None) -> str | None:
     return _normalize_headline(row["headline"])
 
 
+def _released_catalyst(
+    rows: list[sqlite3.Row],
+    symbol: str,
+    released_at: datetime,
+    checked_at: datetime,
+) -> sqlite3.Row | None:
+    """Return the latest story exposed by a completed news check.
+
+    Once a story has been exposed, keep carrying it forward when it ages out of
+    the rolling lookback window. A later relevant story replaces it at the
+    first ten-minute check that can see it.
+    """
+    release_check = _news_check_time(released_at)
+    catalyst = _latest_catalyst(rows, symbol, release_check)
+    boundary = release_check + timedelta(minutes=config.NEWS_CHECK_INTERVAL_MINUTES)
+    while boundary <= checked_at:
+        catalyst = _latest_catalyst(rows, symbol, boundary) or catalyst
+        boundary += timedelta(minutes=config.NEWS_CHECK_INTERVAL_MINUTES)
+    return catalyst
+
+
 def _session_start(at: datetime) -> datetime:
     if at < config.MARKET_OPEN:
         return config.PREMARKET_OPEN
@@ -130,13 +151,23 @@ def snapshot(at: datetime, conn: sqlite3.Connection | None = None, symbols: list
         news_released = release is not None
         checked_at = _news_check_time(datetime.fromisoformat(metrics["as_of"]))
         news_rows = _quality_news(conn, symbol) if news_released else []
-        catalyst = _latest_catalyst(news_rows, symbol, checked_at) if news_released else None
-        initial_catalyst = (
-            _latest_catalyst(news_rows, symbol, _news_check_time(datetime.fromisoformat(release["ts"])))
-            if release
+        released_at = datetime.fromisoformat(release["ts"]) if release else None
+        catalyst = (
+            _released_catalyst(news_rows, symbol, released_at, checked_at)
+            if released_at
             else None
         )
-        news_is_new = catalyst is not None and _news_identity(catalyst) != _news_identity(initial_catalyst)
+        previous_check = checked_at - timedelta(minutes=config.NEWS_CHECK_INTERVAL_MINUTES)
+        previous_catalyst = (
+            _released_catalyst(news_rows, symbol, released_at, previous_check)
+            if released_at and previous_check >= _news_check_time(released_at)
+            else catalyst
+        )
+        news_is_new = (
+            catalyst is not None
+            and checked_at > _news_check_time(released_at)
+            and _news_identity(catalyst) != _news_identity(previous_catalyst)
+        )
         rows.append({
             "symbol": symbol,
             "token_symbol": f"{symbol}x-demo",

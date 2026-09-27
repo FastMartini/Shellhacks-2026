@@ -157,6 +157,28 @@ def test_news_updates_only_on_ten_minute_checks_and_marks_a_different_story():
     assert next_check["news_published_at"] == config.iso(et(9, 32))
     assert next_check["headline_url"] == "https://example.com/update"
 
+    following_check = scanner.snapshot(et(9, 50), conn, ["MSFT"])[0]
+    assert following_check["headline_url"] == "https://example.com/update"
+    assert following_check["news_is_new"] is False
+
+
+def test_released_news_remains_available_after_rolling_window_expires():
+    conn = scanner_db()
+    add_news(
+        conn,
+        et(9, 40) - timedelta(days=1),
+        "Microsoft announces an early cloud partnership",
+        "https://example.com/early-news",
+    )
+    scanner.rebuild_alerts(conn, ["MSFT"])
+
+    at_release = scanner.snapshot(et(9, 31), conn, ["MSFT"])[0]
+    assert at_release["headline_url"] == "https://example.com/early-news"
+
+    after_expiry = scanner.snapshot(et(9, 50), conn, ["MSFT"])[0]
+    assert after_expiry["headline_url"] == "https://example.com/early-news"
+    assert after_expiry["news_is_new"] is False
+
 
 def test_precomputes_one_alert_but_hides_it_until_replay_reaches_it():
     conn = scanner_db()
