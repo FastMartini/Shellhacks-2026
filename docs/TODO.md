@@ -58,6 +58,7 @@ All done; see Done (#19, #21).
 
 | When (ET) | What | PR |
 | --- | --- | --- |
+| Sun 11:22 AM | README setup guide: teammate and fork paths, a check after each step, stopping and restarting, wallet reset, troubleshooting for the faucet, trades and servers, and where to make changes | #30 |
 | Sun 9:50 AM | `frontend/src/App 2.tsx` and `styles 2.css` (untracked scaffold leftovers) are gone from Khalil's checkout | — |
 | Sun 3:06 AM | Dashboard and scanner match the landing hero: Geist type, near-black background, glass topbar, pill buttons | #28 |
 | Sun 2:58 AM | Average win and average loss cards on the dashboard; chart analysis and scanner refinements | #27 |
