@@ -5,13 +5,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import config, db, errors
+from . import config, db, errors, scanner
 from .routers import alerts, portfolio, replay, vault
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    db.get()  # opens SQLite and creates the shared schema
+    conn = db.get()  # opens SQLite and creates the shared schema
+    scanner.rebuild_alerts(conn)
     yield
 
 
