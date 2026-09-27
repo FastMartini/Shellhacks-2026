@@ -185,6 +185,18 @@ def test_faucet_mints_and_records_a_deposit(rpc):
     assert api.get("/portfolio", params={"wallet": W}).json()["cash"] == 1000.0
 
 
+def test_faucet_funds_a_wallet_once(rpc):
+    """The demo wallet is seeded with its deposit, so the on-stage click must not add a second $1,000."""
+    api.post("/faucet", json={"wallet": W})
+    r = api.post("/faucet", json={"wallet": W})
+    assert (r.status_code, r.json()["error"]) == (409, "already_funded")
+    assert len(rpc.sent) == 1 and rpc.balances[(SOFIA.pubkey(), MINTS["dUSD"])] == 1000 * U
+    assert api.get("/portfolio", params={"wallet": W}).json()["deposited"] == 1000.0
+
+    api.post("/demo/reset", json={"wallet": W})  # a reset starts her over, so the seed script can fund her again
+    assert api.post("/faucet", json={"wallet": W}).status_code == 200
+
+
 def test_buy_then_sell_all_through_the_api(rpc):
     api.post("/faucet", json={"wallet": W})
 

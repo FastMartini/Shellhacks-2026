@@ -291,7 +291,7 @@ export default function App() {
       </> : <>
         <section className="portfolio-hero">
           <div><p className="eyebrow">Your account</p><h1>{connected ? "Portfolio overview" : "Your investing story starts here."}</h1><p className="lede">Track demo-dollar cash, tokenized stock positions, and account performance throughout the replay.</p></div>
-          <div className="account-value"><span>Total account value</span><strong>{money(portfolio.total_value)}</strong><small className={portfolio.stats.total_pl >= 0 ? "positive" : "negative"}>{signed(portfolio.stats.total_pl, " total return")}</small><button className="primary faucet-button" disabled={!connected || vaultAction != null} onClick={() => void getDemoDollars()}>{vaultAction === "faucet" ? "Adding demo dollars…" : connected ? "Get 1,000 demo dollars" : "Connect wallet first"}</button></div>
+          <div className="account-value"><span>Total account value</span><strong>{money(portfolio.total_value)}</strong><small className={portfolio.stats.total_pl >= 0 ? "positive" : "negative"}>{signed(portfolio.stats.total_pl, " total return")}</small><button className="primary faucet-button" disabled={!connected || !portfolioReady || portfolio.deposited > 0 || vaultAction != null} onClick={() => void getDemoDollars()}>{vaultAction === "faucet" ? "Adding demo dollars…" : !connected ? "Connect wallet first" : portfolio.deposited > 0 ? `${money(portfolio.deposited)} in demo dollars added` : "Get 1,000 demo dollars"}</button></div>
         </section>
         <section className="stats-grid">
           <StatCard label="Portfolio value" value={money(portfolio.total_value)} detail={connected ? "Connected account" : "Connect Phantom to load"} />
