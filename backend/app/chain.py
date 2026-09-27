@@ -1,7 +1,7 @@
 """Devnet side of the vault (BUILD_SPEC.md → Vault). The vault is fee payer and mint authority for dUSD and
 every stock mint, so a trade is one legacy transaction: burn what she pays with, mint what she gets.
 
-Signing order matters: she signs first (Phantom), then `cosign_and_send` adds the vault's signature.
+Signing order matters: she signs first (Phantom), then `cosign` adds the vault's signature.
 """
 
 import asyncio
@@ -12,7 +12,7 @@ from pathlib import Path
 from solana.exceptions import SolanaRpcException
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
-from solana.rpc.core import RPCException
+from solana.rpc.core import RPCException, TransactionExpiredBlockheightExceededError
 from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
 from solders.hash import Hash
 from solders.keypair import Keypair
@@ -110,6 +110,13 @@ async def confirm(rpc: AsyncClient, sig: Signature, last_valid_block_height: int
             resp = await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=POLL_S,
                                                  last_valid_block_height=last_valid_block_height)
             break
+        except TransactionExpiredBlockheightExceededError:
+            # confirm_transaction stops at the expiry without a last look, and a resubmit after a lost connection
+            # may ask even later: check the signature, history included, before calling it expired.
+            resp = await rpc.get_signature_statuses([sig], search_transaction_history=True)
+            if resp.value[0] is None:
+                raise
+            break
         except SolanaRpcException:  # a dropped connection says nothing about the transaction: ask again
             if attempt == CONFIRM_ATTEMPTS - 1:
                 raise
@@ -142,16 +149,21 @@ async def send_and_confirm(rpc: AsyncClient, tx: Transaction, last_valid_block_h
     return sig
 
 
-async def cosign_and_send(rpc: AsyncClient, vault_kp: Keypair, signed_tx: bytes, expected: Message,
-                          last_valid_block_height: int | None = None) -> Signature:
-    """/trade/submit: refuse anything but the quoted message, add the vault's signature, send, wait for confirmed.
-    Pass the quote's last_valid_block_height (from get_latest_blockhash) so a dropped transaction fails fast."""
+def cosign(vault_kp: Keypair, signed_tx: bytes, expected: Message) -> Transaction:
+    """/trade/submit's checks: refuse anything but the quoted message, then add the vault's signature to hers."""
     tx = Transaction.from_bytes(signed_tx)
     if bytes(tx.message) != bytes(expected):
         raise ValueError("signed transaction does not match the quote")
     tx.partial_sign([vault_kp], tx.message.recent_blockhash)
     tx.verify()  # raises if her signature is missing or wrong
-    return await send_and_confirm(rpc, tx, last_valid_block_height)
+    return tx
+
+
+async def cosign_and_send(rpc: AsyncClient, vault_kp: Keypair, signed_tx: bytes, expected: Message,
+                          last_valid_block_height: int | None = None) -> Signature:
+    """cosign, send, wait for confirmed. Pass the quote's last_valid_block_height (from get_latest_blockhash) so a
+    dropped transaction fails fast."""
+    return await send_and_confirm(rpc, cosign(vault_kp, signed_tx, expected), last_valid_block_height)
 
 
 async def faucet(rpc: AsyncClient, vault_kp: Keypair, dusd: Pubkey, owner: Pubkey, units: int) -> Signature:

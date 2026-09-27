@@ -6,11 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 from solana.rpc.core import RPCException
 
-from app import config, db, ledger
+from app import chain, config, db, ledger
 from app.main import app
 from app.replay import clock
 from scripts import demo_wallet, seed_demo
-from tests.test_vault import MINTS, SOFIA, W, rpc  # noqa: F401  (rpc is the fake-devnet fixture)
+from tests.test_vault import MINTS, SOFIA, W, network_error, rpc  # noqa: F401  (rpc is the fake-devnet fixture)
 
 U = config.UNITS
 
@@ -66,6 +66,22 @@ def test_seed_retries_a_failed_transaction(seeded):
     rpc.send_raw_transaction = flaky
     seed_demo.seed()
     assert len([r for r in ledger.rows(W) if r["kind"] != "deposit"]) == 5
+
+
+def test_seed_resubmits_when_it_loses_touch_mid_trade(seeded):
+    # The first trade lands, then devnet stops answering before it confirms. The seed submits the same quote again,
+    # which records it; re-quoting would have bought twice.
+    rpc = seeded
+    confirm, drops = rpc.confirm_transaction, iter(range(chain.CONFIRM_ATTEMPTS))
+
+    async def flaky(*args, **kwargs):
+        if len(rpc.sent) == 2 and next(drops, None) is not None:  # sent so far: the faucet, then the first trade
+            raise network_error()
+        return await confirm(*args, **kwargs)
+
+    rpc.confirm_transaction = flaky
+    seed_demo.seed()
+    assert len(rpc.sent) == 6 and len(ledger.rows(W)) == 6  # the deposit and 5 trades, each sent once
 
 
 def test_seed_stops_on_an_error_it_cannot_retry(seeded, monkeypatch):

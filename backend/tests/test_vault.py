@@ -122,6 +122,7 @@ def rpc(monkeypatch):
     vault.quotes.clear()
     vault.submitted.clear()
     vault.in_flight.clear()
+    vault.unconfirmed.clear()
     monkeypatch.setattr(chain, "POLL_S", 0)
     fake = FakeRpc()
     monkeypatch.setattr(chain, "client", lambda: fake)
@@ -269,12 +270,36 @@ def test_confirm_survives_a_dropped_connection(rpc):
     assert len(ledger.rows(W)) == 1
 
 
-def test_devnet_unreachable_while_confirming_writes_no_row(rpc):
+def test_losing_touch_after_sending_is_recovered_by_resubmitting(rpc):
+    # Devnet stops answering while we wait, but the trade landed. Submitting the same quote again finds it and
+    # records it: one transaction, one row. Re-quoting instead would trade twice.
     q = buy_quote(rpc)
     rpc.drop_confirms = chain.CONFIRM_ATTEMPTS
     r = submit(q)
     assert (r.status_code, r.json()["error"]) == (502, "chain_unavailable")
-    assert "check the transaction log" in r.json()["message"] and ledger.rows(W) == []
+    assert "submit again" in r.json()["message"] and ledger.rows(W) == []
+    again = submit(q)
+    assert again.status_code == 200 and again.json()["signature"] == str(rpc.sent[0].signatures[0])
+    assert len(rpc.sent) == 1 and len(ledger.rows(W)) == 1
+
+
+def test_a_resubmit_learns_the_trade_never_landed(rpc):
+    q = buy_quote(rpc)
+    rpc.fail_send, rpc.drop_confirms = network_error(), chain.CONFIRM_ATTEMPTS  # the send never reached devnet
+    assert submit(q).status_code == 502
+    rpc.fail_send, rpc.fail_confirm = None, TransactionExpiredBlockheightExceededError("expired")
+    r = submit(q)
+    assert (r.status_code, r.json()["error"]) == (409, "quote_expired")
+    assert_no_trade(rpc)
+
+
+def test_a_resubmit_after_the_blockhash_expired_still_finds_a_trade_that_landed(rpc):
+    # confirm_transaction stops without looking once the blockhash has expired; one last status check finds it.
+    q = buy_quote(rpc)
+    rpc.drop_confirms = chain.CONFIRM_ATTEMPTS
+    assert submit(q).status_code == 502
+    rpc.fail_confirm = TransactionExpiredBlockheightExceededError("expired")
+    assert submit(q).status_code == 200 and len(ledger.rows(W)) == 1
 
 
 def test_rejects_a_transaction_other_than_the_quote(rpc):
@@ -310,8 +335,11 @@ def test_chain_failures_write_no_ledger_row(rpc, setup, code):
     assert_no_trade(rpc)
 
 
-def test_reset_drops_open_and_finished_quotes(rpc):
-    done, q = buy_quote(rpc), quote(side="buy", usd_amount=10).json()
+def test_reset_drops_open_finished_and_unconfirmed_quotes(rpc):
+    done, lost, q = buy_quote(rpc), quote(side="buy", usd_amount=10).json(), quote(side="buy", usd_amount=20).json()
     submit(done)
+    rpc.drop_confirms = chain.CONFIRM_ATTEMPTS
+    submit(lost)
     api.post("/demo/reset", json={"wallet": W})
     assert q["quote_id"] not in vault.quotes and done["quote_id"] not in vault.submitted
+    assert lost["quote_id"] not in vault.unconfirmed
