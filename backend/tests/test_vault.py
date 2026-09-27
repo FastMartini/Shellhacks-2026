@@ -37,6 +37,11 @@ def network_error():
     return SolanaRpcException(ConnectionError("connection reset"), None, None, None)
 
 
+def node_behind():
+    """solana-py raises RPCException for any JSON-RPC error reply, status polls included."""
+    return RPCException(SimpleNamespace(message="Node is behind by 50 slots"))
+
+
 def et(hh, mm):
     return datetime(2026, 9, 25, hh, mm, tzinfo=config.ET)
 
@@ -50,7 +55,9 @@ class FakeRpc:
         self.fail_send = None      # exception send_raw_transaction raises
         self.fail_confirm = None   # exception confirm_transaction raises
         self.drop_send_reply = False  # the transaction lands but the reply is lost
-        self.drop_confirms = 0        # confirm calls that lose the connection first
+        self.drop_confirms = 0        # confirm calls that fail first
+        self.drop_statuses = 0        # status lookups that fail first
+        self.drop_with = network_error  # how those fail
         self.err = None            # on-chain error the confirmed status carries
         self.statuses: dict = {}   # signature → its on-chain error (None = succeeded), for every transaction that landed
         self.confirmation = TransactionConfirmationStatus.Confirmed  # how far the landed transactions have got
@@ -88,7 +95,7 @@ class FakeRpc:
     async def confirm_transaction(self, sig, commitment=None, sleep_seconds=0.5, last_valid_block_height=None):
         if self.drop_confirms:
             self.drop_confirms -= 1
-            raise network_error()
+            raise self.drop_with()
         if self.fail_confirm:
             raise self.fail_confirm
         if self.confirmation == TransactionConfirmationStatus.Processed:  # not confirmed before the blockhash expired
@@ -96,6 +103,9 @@ class FakeRpc:
         return SimpleNamespace(value=[SimpleNamespace(err=self.err)])
 
     async def get_signature_statuses(self, sigs, search_transaction_history=False):
+        if self.drop_statuses:
+            self.drop_statuses -= 1
+            raise self.drop_with()
         return SimpleNamespace(value=[SimpleNamespace(err=self.statuses[s], confirmation_status=self.confirmation)
                                       if s in self.statuses else None for s in sigs])
 
@@ -316,6 +326,21 @@ def test_a_trade_only_processed_when_the_blockhash_expires_is_not_recorded_until
         r = submit(q)
         assert (r.status_code, r.json()["error"]) == (502, "chain_unavailable") and ledger.rows(W) == []
     rpc.confirmation = TransactionConfirmationStatus.Confirmed
+    assert submit(q).status_code == 200
+    assert len(rpc.sent) == 1 and len(ledger.rows(W)) == 1
+
+
+def test_error_replies_while_checking_on_a_trade_do_not_lose_it(rpc):
+    # An error reply to a status check says nothing about the transaction, so it's like losing touch: keep the
+    # signature and answer 502. tx_failed would tell her to re-quote, and a trade that landed would happen twice.
+    q = buy_quote(rpc)
+    rpc.drop_with, rpc.drop_confirms = node_behind, chain.CONFIRM_ATTEMPTS  # while waiting for confirmed
+    r = submit(q)
+    assert (r.status_code, r.json()["error"]) == (502, "chain_unavailable")
+    rpc.fail_confirm = TransactionExpiredBlockheightExceededError("expired")
+    rpc.drop_statuses = chain.CONFIRM_ATTEMPTS  # a resubmit's last look after the expiry
+    r = submit(q)
+    assert (r.status_code, r.json()["error"]) == (502, "chain_unavailable") and ledger.rows(W) == []
     assert submit(q).status_code == 200
     assert len(rpc.sent) == 1 and len(ledger.rows(W)) == 1
 

@@ -35,8 +35,8 @@ FAUCET_USD = 1000
 QUOTE_TTL_S = 30
 U = config.UNITS
 LOST_TOUCH = "Lost touch with Solana devnet mid-trade; submit again to check whether it went through"
-# The trade may have landed, but we couldn't see it confirm: devnet stopped answering, or it was only processed
-# when the blockhash expired.
+# The trade may have landed, but we couldn't see it confirm: devnet stopped answering or only sent errors, or it
+# was only processed when the blockhash expired.
 MAYBE_LANDED = (SolanaRpcException, UnconfirmedTxError)
 
 
@@ -243,15 +243,15 @@ async def _submit(qid: str, q: Quote, signed_tx_base64: str) -> dict:
 
 
 async def _recheck(qid: str, q: Quote, sig: Signature) -> dict:
-    """A resubmit after devnet stopped answering mid-trade: did the transaction we sent land?"""
+    """A resubmit after we couldn't see the trade confirm (MAYBE_LANDED): did the transaction we sent land?"""
     with _chain_errors(("quote_expired", "The trade never went through; quote again"), LOST_TOUCH):
         async with chain.client() as rpc:
             try:
                 await chain.confirm(rpc, sig, q.last_valid_block_height)
-            except MAYBE_LANDED:
-                raise  # still can't tell: keep it for the next resubmit
-            except Exception:
-                unconfirmed.pop(qid, None)  # it failed or never landed: nothing left to check
+            except (TransactionExpiredBlockheightExceededError, RuntimeError):
+                # It never landed or failed on-chain: nothing left to check. Anything else can't say whether it
+                # landed, so it stays for the next resubmit.
+                unconfirmed.pop(qid, None)
                 raise
     unconfirmed.pop(qid, None)
     return _record(qid, q, sig)

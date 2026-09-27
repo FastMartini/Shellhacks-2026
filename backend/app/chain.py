@@ -35,7 +35,7 @@ VAULT_KEYPAIR = Path(os.getenv("VAULT_KEYPAIR", BACKEND / "keys" / "vault-keypai
 MINTS_PATH = BACKEND / "mints.json"
 # The public devnet RPC rate-limits status polling; a Helius URL in SOLANA_RPC_URL is faster and roomier.
 POLL_S = 2.0
-# A network error while waiting for confirmation is retried this many times before giving up.
+# A failed check while waiting for confirmation is retried this many times before giving up.
 CONFIRM_ATTEMPTS = 5
 # Phantom adds its own compute budget (and so changes the message she signs) to any transaction without one,
 # which would fail the quote check. Setting both here keeps the message as quoted. ~40k CU used; fee is the vault's.
@@ -103,32 +103,40 @@ def unsigned_tx(message: Message) -> bytes:
     return bytes(Transaction.new_unsigned(message))
 
 
+async def _confirmed_status(rpc: AsyncClient, sig: Signature, last_valid_block_height: int | None):
+    """One try at confirm(): the status once it reaches `confirmed`, failed or not."""
+    try:
+        return (await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=POLL_S,
+                                              last_valid_block_height=last_valid_block_height)).value[0]
+    except TransactionExpiredBlockheightExceededError:
+        # confirm_transaction stops at the expiry without a last look, and a resubmit after a lost connection
+        # may ask even later: check the signature, history included, before calling it expired.
+        status = (await rpc.get_signature_statuses([sig], search_transaction_history=True)).value[0]
+        if status is None:
+            raise
+        if status.confirmation_status not in (TransactionConfirmationStatus.Confirmed,
+                                              TransactionConfirmationStatus.Finalized):
+            # Only processed, so it could still drop with its fork. It can't land anywhere else now, so the
+            # next look finds it confirmed or gone.
+            raise UnconfirmedTxError(f"{sig} has been processed but not confirmed")
+        return status
+
+
 async def confirm(rpc: AsyncClient, sig: Signature, last_valid_block_height: int | None = None) -> None:
-    """Waits for `confirmed`, then raises if the transaction failed: confirm_transaction returns either way.
-    Given the blockhash's last valid height, it gives up once the transaction can no longer land, not after 90 s.
-    Raises UnconfirmedTxError if it landed but hadn't confirmed by then: check again later."""
+    """Waits for `confirmed`, then raises RuntimeError if the transaction failed: confirm_transaction returns
+    either way. Given the blockhash's last valid height, it gives up once the transaction can no longer land
+    (TransactionExpiredBlockheightExceededError), not after 90 s. UnconfirmedTxError means it may have landed but
+    wasn't seen to confirm: check again later."""
     for attempt in range(CONFIRM_ATTEMPTS):
         try:
-            resp = await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=POLL_S,
-                                                 last_valid_block_height=last_valid_block_height)
+            status = await _confirmed_status(rpc, sig, last_valid_block_height)
             break
-        except TransactionExpiredBlockheightExceededError:
-            # confirm_transaction stops at the expiry without a last look, and a resubmit after a lost connection
-            # may ask even later: check the signature, history included, before calling it expired.
-            resp = await rpc.get_signature_statuses([sig], search_transaction_history=True)
-            if resp.value[0] is None:
-                raise
-            if resp.value[0].confirmation_status not in (TransactionConfirmationStatus.Confirmed,
-                                                         TransactionConfirmationStatus.Finalized):
-                # Only processed, so it could still drop with its fork. It can't land anywhere else now, so the
-                # next look finds it confirmed or gone.
-                raise UnconfirmedTxError(f"{sig} has been processed but not confirmed")
-            break
-        except SolanaRpcException:  # a dropped connection says nothing about the transaction: ask again
+        # A failed check says nothing about the transaction, whether the connection dropped or devnet sent an
+        # error reply ("node is behind"), which solana-py raises as RPCException: ask again.
+        except (SolanaRpcException, RPCException) as e:
             if attempt == CONFIRM_ATTEMPTS - 1:
-                raise
+                raise UnconfirmedTxError(f"couldn't check on {sig}") from e
             await asyncio.sleep(POLL_S)
-    status = resp.value[0]
     if status is None or status.err is not None:
         raise RuntimeError(f"transaction {sig} failed: {status.err if status else 'no status'}")
 
