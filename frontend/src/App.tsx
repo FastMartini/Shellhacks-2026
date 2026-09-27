@@ -105,13 +105,18 @@ export default function App() {
     }
   }, [wallet]);
 
+  // The landing page shows no portfolio data, so an auto-connected wallet must
+  // not start polling the backend there. A boolean, not `view`, so moving
+  // between the dashboard and the scanner doesn't reset the portfolio.
+  const onLanding = view === "landing";
   useEffect(() => {
+    if (onLanding) return;
     setPortfolioWallet(null);
     if (!wallet) { setPortfolio(EMPTY_PORTFOLIO); setTransactions([]); return; }
     void loadPortfolio();
     const timer = window.setInterval(() => void loadPortfolio(), 2_000);
     return () => window.clearInterval(timer);
-  }, [loadPortfolio, wallet]);
+  }, [loadPortfolio, onLanding, wallet]);
 
   const selectedAlert = alerts.find((alert) => alert.symbol === selectedSymbol);
   const selectedPrice = prices.find((price) => price.symbol === selectedSymbol);
