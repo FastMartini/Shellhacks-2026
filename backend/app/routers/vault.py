@@ -80,6 +80,9 @@ submitted: dict[str, tuple[str, int]] = {}  # quote_id → (wallet, ledger row i
 # Sent, but not seen to confirm (MAYBE_LANDED). It may have landed, so a resubmit checks this signature instead of
 # sending again.
 unconfirmed: dict[str, tuple[Quote, Signature]] = {}
+# Each wallet gets demo dollars once (until /demo/reset), so a second click can't double the account: seed_demo.py
+# already deposits for the demo wallet. Wallets whose faucet is running, so two quick clicks don't both mint.
+funding: set[str] = set()
 
 
 def _owner(wallet: str) -> Pubkey:
@@ -141,11 +144,17 @@ def _amounts(body: QuoteBody, price: float) -> tuple[int | None, int | None]:
 @router.post("/faucet")
 async def faucet(body: WalletBody):
     owner, vault = _owner(body.wallet), _vault()
+    if body.wallet in funding or any(r["kind"] == "deposit" for r in ledger.rows(body.wallet)):
+        raise ApiError(409, "already_funded", f"This wallet already has its ${FAUCET_USD:,} in demo dollars")
     units = FAUCET_USD * U
-    with _chain_errors(("tx_failed", "The faucet transaction expired before it landed; try again")):
-        async with chain.client() as rpc:
-            sig = await chain.faucet(rpc, vault, chain.mints()["dUSD"], owner, units)
-    ledger.record(body.wallet, "deposit", None, None, None, units, clock.sim_time, str(sig))
+    funding.add(body.wallet)
+    try:
+        with _chain_errors(("tx_failed", "The faucet transaction expired before it landed; try again")):
+            async with chain.client() as rpc:
+                sig = await chain.faucet(rpc, vault, chain.mints()["dUSD"], owner, units)
+        ledger.record(body.wallet, "deposit", None, None, None, units, clock.sim_time, str(sig))
+    finally:
+        funding.discard(body.wallet)
     return {"signature": str(sig), "usd_amount": FAUCET_USD}
 
 
