@@ -102,7 +102,7 @@ The clock starts **paused at 9:25 AM** and stops itself at 4:00 PM. Seeking back
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| POST | `/faucet` | `{wallet}` | `{signature, usd_amount: 1000}`, and a `deposit` ledger row |
+| POST | `/faucet` | `{wallet}` | `{signature, usd_amount: 1000}`, and a `deposit` ledger row. Once per wallet until `/demo/reset` |
 | POST | `/trade/quote` | `{wallet, symbol, side: "buy" \| "sell", usd_amount?, qty?, sell_all?}` | `{quote_id, symbol, side, price, qty, usd_amount, sim_time, expires_in_s: 30, tx_base64}` |
 | POST | `/trade/submit` | `{quote_id, signed_tx_base64}` | the transaction row from section 4 |
 | POST | `/demo/reset` | `{wallet}` | clears that wallet's ledger rows and resets the clock to 9:25 AM, paused |
@@ -123,6 +123,7 @@ The clock starts **paused at 9:25 AM** and stops itself at 4:00 PM. Seeking back
 | 409 | `quote_expired` | The quote is over 30 s old, or its trade never landed | Re-quote |
 | 409 | `tx_failed` | Devnet rejected the transaction, or it failed on-chain; nothing changed | Re-quote |
 | 409 | `submit_in_progress` | The same quote is already being submitted | Wait for that submit |
+| 409 | `already_funded` | `/faucet` for a wallet that already has its deposit, or whose faucet is still running | Show the message |
 | 502 | `chain_unavailable` | Couldn't reach devnet. On `/trade/submit` the trade may have landed | Submit the same quote again; elsewhere, retry |
 | 503 | `vault_not_configured` | No vault keypair on this machine | Setup problem, not the user's |
 
@@ -200,7 +201,7 @@ Every trade is one devnet transaction with both sides in it. **Sofía signs firs
 
 **Sell** is the mirror: burn her stock tokens, mint dUSD to her.
 
-**Faucet:** the vault mints 1,000 dUSD to her wallet and records a `deposit` ledger row. No signature from her, no SOL needed.
+**Faucet:** the vault mints 1,000 dUSD to her wallet and records a `deposit` ledger row. No signature from her, no SOL needed. Each wallet gets it once (until `/demo/reset`): `seed_demo.py` already deposits for the demo wallet, and a second $1,000 would dwarf the live trade on the account-value chart and halve total P/L %.
 
 **Quote → sign → submit**
 
@@ -276,7 +277,7 @@ Three minutes, three speakers, **one live trade**. Before walking up: `/demo/res
 | Time | Speaker | On screen | Say |
 | --- | --- | --- | --- |
 | 0:00–0:20 | Justin | Slide: peso vs. dollar | Sofía in Argentina watched her savings lose value and can't open a US brokerage account |
-| 0:20–0:40 | Khalil | Phantom connected, "Get demo dollars" | Her pesos become digital dollars. The wallet is her account; no signup |
+| 0:20–0:40 | Khalil | Phantom connected; the button reads "$1,000.00 in demo dollars added" (the seeded 6:00 AM deposit, so no click) | Her pesos become digital dollars. The wallet is her account; no signup |
 | 0:40–1:40 | Diego | Start the replay, jump to the scripted alert (AKAM if the bars allow it), buy, click "Confirm (unsafe)" on Phantom's red warning, jump ahead, sell the same way. Open Solana Explorer | The scanner flags momentum with a real catalyst. Phantom warns because it can't simulate our devnet test tokens; we pay the fee, so she needs no SOL. The trade confirmed in about a second, and the fee is a fraction of a cent |
 | 1:40–2:20 | Khalil | Stats page with the seeded trades plus the live one, account-value chart | Her log shows what's working: total P/L, average win vs. average loss |
 | 2:20–2:40 | Justin | Slide: what's next | Real xStocks through Jupiter, live mode, short selling, more countries |

@@ -21,7 +21,7 @@ Last updated: Sat Sept 26, 10:25 PM ET. **Next checkpoint: 10:30 PM**, when the 
 
 - [ ] **Diego, Matthew** · Pick the live demo trade: stock, buy minute and sell minute, checked against the real bars. `seed_demo.py` already uses AKAM as the loss, so per the spec the live trade is MSFT or DDOG. Write it into the spec's demo script (both copies).
 - [ ] **Diego** · Demo reset button in the UI that calls `/demo/reset`. Today's "Reset timer" only moves the clock and is disabled after a deposit. Optional if `seed_demo.py` covers every rehearsal.
-- [ ] **Khalil, Matthew** · Decide the demo's faucet beat. `seed_demo.py` already deposits $1,000 at 6:00, so clicking "Get demo dollars" on stage makes a second deposit: the account-value chart jumps from about $993 to $1,993, which dwarfs the live trade, and total P/L % halves. Skip the click and point at the seeded deposit, do it on a fresh wallet, or chart P/L instead of account value. Write the choice into the spec's demo script (both copies). (#16 review)
+- [x] **Khalil, Matthew** · Decide the demo's faucet beat. `seed_demo.py` already deposits $1,000 at 6:00, so a stage click made a second deposit (chart jumped from about $993 to $1,993, total P/L % halved). Decided: `/faucet` funds a wallet once (409 `already_funded` until `/demo/reset`), the button then reads "demo dollars added", and Khalil points at the seeded deposit instead of clicking. Spec updated. (#16 review)
 
 ## Nice tier (only after the 10:30 PM checkpoint passes)
 
