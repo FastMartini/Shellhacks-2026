@@ -61,7 +61,7 @@ Last updated: Sat Sept 26, 10:25 PM ET. **Next checkpoint: 10:30 PM**, when the 
 
 | When (ET) | What | PR |
 | --- | --- | --- |
-| Sat 10:25 PM | One SQLite connection per thread plus WAL: `/portfolio` and `/transactions` no longer 500 under polling (load test: 50 of 900 before, 0 after) | this PR |
+| Sat 10:25 PM | One SQLite connection per thread plus WAL: `/portfolio` and `/transactions` no longer 500 under polling (load test: 50 of 900 before, 0 after) | #19 |
 | Sat 9:34 PM | Vault error codes in the spec (both copies); a lost reply or dropped connection mid-trade no longer loses or doubles a trade | #17 |
 | Sat 9:08 PM | Frontend wired to the vault: Get demo dollars, quote → Phantom signs → submit | #16 |
 | Sat 8:44 PM | Real `/faucet`, `/trade/quote`, `/trade/submit`, `seed_demo.py` | #13 |
