@@ -186,7 +186,6 @@ export default function App() {
         ...(side === "buy" ? { usd_amount: parsedAmount } : { qty: parsedAmount }),
       }),
     });
-    if (!quote.tx_base64) throw new Error("The live vault quote route is not ready yet. Please try again after the backend update lands.");
 
     setVaultAction("sign");
     const transaction = Transaction.from(decodeBase64(quote.tx_base64));
