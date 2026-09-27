@@ -1,8 +1,8 @@
 # Running to-do list
 
-What's left before the Sunday 10:30 AM submission, in the order it has to happen. Scope and contracts live in [`BUILD_SPEC.md`](BUILD_SPEC.md); this file only tracks who is doing what next.
+What's left before Devpost closes at 11:00 AM Sunday, in the order it has to happen. Scope and contracts live in [`BUILD_SPEC.md`](BUILD_SPEC.md); this file only tracks who is doing what next.
 
-Last updated: Sun Sept 27, 9:50 AM ET. **The 9:00 AM feature freeze has passed: bug fixes only.** Next deadline: **Devpost submission by 10:30 AM**. None of the Devpost items below is checked off, so confirm them first; missing the submission or the prize opt-in means we aren't judged.
+Last updated: Sun Sept 27, 10:00 AM ET. **Devpost submissions close at 11:00 AM**, the same time as the code freeze; we aim to submit by 10:30 to leave a buffer. None of the Devpost items below is checked off, so confirm them first; missing the submission or the prize opt-in means we aren't judged. Since the 9:00 AM feature freeze, it's bug fixes only.
 
 **How to use it**
 
@@ -36,7 +36,7 @@ All done; see Done (#19, #21).
 - [ ] **Khalil, Matthew** · Decide what the demo opens on. #23 makes the landing page the default view, so the run sheet either starts there and clicks through, or opens on `#dashboard` and saves the hero for the end.
 - [ ] **Matthew** · Pre-demo run sheet: vault has devnet SOL, `seed_demo.py` (it runs `/demo/reset` and burns leftovers itself), demo wallet connected in Phantom, replay paused at 7:00 AM.
 - [ ] **Everyone** · 9:00 AM feature freeze: bug fixes only. Rehearse 3 times with a reset between runs and record a backup screen video.
-- [ ] **Justin** · Submit on Devpost by **10:30 AM** (code freeze 11:00 AM).
+- [ ] **Justin** · Submit on Devpost by **10:30 AM**. Devpost closes at **11:00 AM**, with the code freeze.
 
 ## Docs and housekeeping
 
