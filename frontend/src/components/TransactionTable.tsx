@@ -40,7 +40,7 @@ export function TransactionTable({ transactions }: { transactions: TransactionRo
             <td>{transaction.held_min == null ? "—" : `${transaction.held_min} min`}</td>
           </tr>)}</tbody>
         </table></div>}
-      <p className="transaction-note">Only confirmed transactions are recorded. Symbols are shown exactly as returned by the API.</p>
+      <p className="transaction-note">Confirmed trades are recorded on Solana devnet, with proof linked above.</p>
     </section>
   );
 }

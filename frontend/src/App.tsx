@@ -1,9 +1,10 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { Transaction } from "@solana/web3.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiRequest } from "./api/client";
-import type { Alert, Portfolio, PriceQuote, ReplayState, TransactionRow } from "./api/types";
+import { ApiRequestError, apiRequest } from "./api/client";
+import type { Alert, FaucetResponse, Portfolio, PriceQuote, ReplayState, TradeQuote, TransactionRow } from "./api/types";
 import { EquityChart } from "./components/EquityChart";
 import { StatCard } from "./components/StatCard";
 import { TransactionTable } from "./components/TransactionTable";
@@ -29,22 +30,35 @@ function marketTime(value?: string) {
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }).format(new Date(value));
 }
 
+function decodeBase64(value: string) {
+  return Uint8Array.from(window.atob(value), (character) => character.charCodeAt(0));
+}
+
+function encodeBase64(value: Uint8Array) {
+  let binary = "";
+  for (const byte of value) binary += String.fromCharCode(byte);
+  return window.btoa(binary);
+}
+
 export default function App() {
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, signTransaction } = useWallet();
   const wallet = publicKey?.toBase58();
   const [view, setView] = useState<"dashboard" | "scanner">(() => window.location.hash === "#scanner" ? "scanner" : "dashboard");
   const [replay, setReplay] = useState<ReplayState | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [prices, setPrices] = useState<PriceQuote[]>([]);
   const [portfolio, setPortfolio] = useState<Portfolio>(EMPTY_PORTFOLIO);
+  const [portfolioWallet, setPortfolioWallet] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState("AKAM");
   const [amount, setAmount] = useState("");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [vaultAction, setVaultAction] = useState<"faucet" | "quote" | "sign" | "submit" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [vaultFeedback, setVaultFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   const loadMarket = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -68,23 +82,40 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [loadMarket]);
 
-  useEffect(() => {
-    if (!wallet) { setPortfolio(EMPTY_PORTFOLIO); setTransactions([]); return; }
-    const loadPortfolio = () => Promise.all([
+  const loadPortfolio = useCallback(async () => {
+    if (!wallet) { setPortfolio(EMPTY_PORTFOLIO); setTransactions([]); setPortfolioWallet(null); return; }
+    try {
+      const [nextPortfolio, nextTransactions] = await Promise.all([
       apiRequest<Portfolio>(`/portfolio?wallet=${encodeURIComponent(wallet)}`),
       apiRequest<TransactionRow[]>(`/transactions?wallet=${encodeURIComponent(wallet)}`),
-    ]).then(([nextPortfolio, nextTransactions]) => { setPortfolio(nextPortfolio); setTransactions(nextTransactions); })
-      .catch((requestError: unknown) => setError(requestError instanceof Error ? requestError.message : "Could not load the portfolio."));
-    void loadPortfolio();
-    const timer = window.setInterval(loadPortfolio, 2_000);
-    return () => window.clearInterval(timer);
+      ]);
+      setPortfolio(nextPortfolio); setTransactions(nextTransactions);
+      setPortfolioWallet(wallet);
+      return nextPortfolio;
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load the portfolio.");
+    }
   }, [wallet]);
+
+  useEffect(() => {
+    setPortfolioWallet(null);
+    if (!wallet) { setPortfolio(EMPTY_PORTFOLIO); setTransactions([]); return; }
+    void loadPortfolio();
+    const timer = window.setInterval(() => void loadPortfolio(), 2_000);
+    return () => window.clearInterval(timer);
+  }, [loadPortfolio, wallet]);
 
   const selectedAlert = alerts.find((alert) => alert.symbol === selectedSymbol);
   const selectedPrice = prices.find((price) => price.symbol === selectedSymbol);
+  const selectedHolding = portfolio.holdings.find((holding) => holding.symbol === selectedSymbol);
   const parsedAmount = Number(amount);
-  const estimatedShares = selectedPrice && parsedAmount > 0 ? parsedAmount / selectedPrice.price : null;
+  const estimatedShares = side === "buy" && selectedPrice && parsedAmount > 0 ? parsedAmount / selectedPrice.price : null;
+  const estimatedValue = side === "sell" && selectedPrice && parsedAmount > 0 ? parsedAmount * selectedPrice.price : null;
   const visibleAlerts = useMemo(() => [...alerts].sort((a, b) => b.time.localeCompare(a.time)), [alerts]);
+  const portfolioReady = wallet != null && portfolioWallet === wallet;
+  const hasValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
+  const hasTradeBalance = side === "buy" ? portfolio.cash >= parsedAmount : (selectedHolding?.qty ?? 0) >= parsedAmount;
+  const canTrade = Boolean(wallet && signTransaction && selectedPrice && portfolioReady && hasValidAmount && hasTradeBalance);
 
   function navigate(nextView: "dashboard" | "scanner") {
     setView(nextView);
@@ -124,7 +155,82 @@ export default function App() {
     } finally { setWorking(false); }
   }
 
-  const canResetTimer = replay != null && portfolio.deposited === 0 && new Date(replay.sim_time).getTime() > REPLAY_START_MS;
+  async function getDemoDollars() {
+    if (!wallet) return;
+    setVaultAction("faucet"); setVaultFeedback(null);
+    try {
+      const depositedBefore = portfolio.deposited;
+      const result = await apiRequest<FaucetResponse>("/faucet", {
+        method: "POST",
+        body: JSON.stringify({ wallet }),
+      });
+      const refreshedPortfolio = await loadPortfolio();
+      if (!refreshedPortfolio || refreshedPortfolio.deposited <= depositedBefore) {
+        throw new Error("The faucet responded, but the ledger balance did not update because the vault backend is still using its stub route.");
+      }
+      setVaultFeedback({ kind: "success", message: `${money(result.usd_amount)} in demo dollars was added to your account.` });
+    } catch (requestError) {
+      setVaultFeedback({ kind: "error", message: requestError instanceof Error ? requestError.message : "Could not get demo dollars." });
+    } finally { setVaultAction(null); }
+  }
+
+  async function signAndSubmitTrade(retryExpired = true): Promise<TransactionRow> {
+    if (!wallet || !signTransaction) throw new Error("Connect Phantom before trading.");
+    setVaultAction("quote");
+    const quote = await apiRequest<TradeQuote>("/trade/quote", {
+      method: "POST",
+      body: JSON.stringify({
+        wallet,
+        symbol: selectedSymbol,
+        side,
+        ...(side === "buy" ? { usd_amount: parsedAmount } : { qty: parsedAmount }),
+      }),
+    });
+    if (!quote.tx_base64) throw new Error("The live vault quote route is not ready yet. Please try again after the backend update lands.");
+
+    setVaultAction("sign");
+    const transaction = Transaction.from(decodeBase64(quote.tx_base64));
+    const signedTransaction = await signTransaction(transaction);
+    const signedTxBase64 = encodeBase64(signedTransaction.serialize({ requireAllSignatures: false, verifySignatures: false }));
+
+    setVaultAction("submit");
+    try {
+      return await apiRequest<TransactionRow>("/trade/submit", {
+        method: "POST",
+        body: JSON.stringify({ quote_id: quote.quote_id, signed_tx_base64: signedTxBase64 }),
+      });
+    } catch (requestError) {
+      if (retryExpired && requestError instanceof ApiRequestError && requestError.status === 409 && requestError.code === "quote_expired") {
+        return signAndSubmitTrade(false);
+      }
+      throw requestError;
+    }
+  }
+
+  async function submitTrade() {
+    if (!canTrade) return;
+    setVaultFeedback(null);
+    try {
+      const transaction = await signAndSubmitTrade();
+      setAmount("");
+      await loadPortfolio();
+      setVaultFeedback({ kind: "success", message: `${transaction.side === "buy" ? "Bought" : "Sold"} ${transaction.qty.toFixed(6)} ${transaction.symbol} shares on Solana devnet.` });
+    } catch (requestError) {
+      setVaultFeedback({ kind: "error", message: requestError instanceof Error ? requestError.message : "The trade could not be completed." });
+    } finally { setVaultAction(null); }
+  }
+
+  function tradeButtonLabel() {
+    if (vaultAction === "quote") return "Preparing quote…";
+    if (vaultAction === "sign") return "Confirm in Phantom…";
+    if (vaultAction === "submit") return "Confirming on Solana…";
+    if (!connected) return "Connect wallet to trade";
+    if (!hasValidAmount) return side === "buy" ? "Enter a dUSD amount" : "Enter shares to sell";
+    if (!hasTradeBalance) return side === "buy" ? "Get demo dollars first" : `Only ${(selectedHolding?.qty ?? 0).toFixed(6)} shares available`;
+    return `${side === "buy" ? "Buy" : "Sell"} ${selectedSymbol}`;
+  }
+
+  const canResetTimer = connected && portfolioReady && replay != null && portfolio.deposited === 0 && new Date(replay.sim_time).getTime() > REPLAY_START_MS;
 
   return (
     <main>
@@ -139,6 +245,7 @@ export default function App() {
       </header>
 
       {error && <div className="error-banner" role="alert"><span><b>Backend unavailable.</b> {error}</span><button onClick={() => void loadMarket()}>Retry</button></div>}
+      {vaultFeedback && <div className={`vault-feedback ${vaultFeedback.kind}`} role={vaultFeedback.kind === "error" ? "alert" : "status"}><span>{vaultFeedback.message}</span><button aria-label="Dismiss message" onClick={() => setVaultFeedback(null)}>×</button></div>}
 
       {view === "scanner" ? <>
         <section className="hero">
@@ -170,10 +277,10 @@ export default function App() {
             <p className="eyebrow">Trade ticket preview</p>
             <div className="ticket-title"><div><h2>{selectedSymbol}</h2><small>{selectedSymbol}x-demo</small></div><span>{selectedPrice ? money(selectedPrice.price) : "—"}</span></div>
             <div className={selectedPrice && selectedPrice.change_pct < 0 ? "price-change negative" : "price-change"}>{selectedPrice ? `${signed(selectedPrice.change_pct, "%")} vs. previous close` : "Waiting for price"}</div>
-            <div className="segmented"><button className={side === "buy" ? "active" : ""} onClick={() => setSide("buy")}>Buy</button><button className={side === "sell" ? "active sell" : ""} onClick={() => setSide("sell")}>Sell</button></div>
-            <label>Amount in dUSD<input inputMode="decimal" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" /></label>
-            <div className="quote-row"><span>Estimated shares</span><span>{estimatedShares ? estimatedShares.toFixed(6) : "—"}</span></div>
-            <button className="primary" disabled>{!connected ? "Connect wallet to trade" : "Vault integration is next"}</button>
+            <div className="segmented"><button className={side === "buy" ? "active" : ""} onClick={() => { setSide("buy"); setAmount(""); }}>Buy</button><button className={side === "sell" ? "active sell" : ""} onClick={() => { setSide("sell"); setAmount(""); }}>Sell</button></div>
+            <label>{side === "buy" ? "Amount in dUSD" : "Shares to sell"}<input inputMode="decimal" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" /></label>
+            <div className="quote-row"><span>{side === "buy" ? "Estimated shares" : "Estimated value"}</span><span>{side === "buy" ? (estimatedShares ? estimatedShares.toFixed(6) : "—") : (estimatedValue ? money(estimatedValue) : "—")}</span></div>
+            <button className="primary" disabled={vaultAction != null || !canTrade} onClick={() => void submitTrade()}>{tradeButtonLabel()}</button>
             <small className="disclaimer">Market data is real. Trades will use devnet test tokens with no monetary value.</small>
           </aside>
         </section>
@@ -185,7 +292,7 @@ export default function App() {
       </> : <>
         <section className="portfolio-hero">
           <div><p className="eyebrow">Your account</p><h1>{connected ? "Portfolio overview" : "Your investing story starts here."}</h1><p className="lede">Track demo-dollar cash, tokenized stock positions, and account performance throughout the replay.</p></div>
-          <div className="account-value"><span>Total account value</span><strong>{money(portfolio.total_value)}</strong><small className={portfolio.stats.total_pl >= 0 ? "positive" : "negative"}>{signed(portfolio.stats.total_pl, " total return")}</small></div>
+          <div className="account-value"><span>Total account value</span><strong>{money(portfolio.total_value)}</strong><small className={portfolio.stats.total_pl >= 0 ? "positive" : "negative"}>{signed(portfolio.stats.total_pl, " total return")}</small><button className="primary faucet-button" disabled={!connected || vaultAction != null} onClick={() => void getDemoDollars()}>{vaultAction === "faucet" ? "Adding demo dollars…" : connected ? "Get 1,000 demo dollars" : "Connect wallet first"}</button></div>
         </section>
         <section className="stats-grid">
           <StatCard label="Portfolio value" value={money(portfolio.total_value)} detail={connected ? "Connected account" : "Connect Phantom to load"} />
