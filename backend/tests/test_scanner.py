@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -58,6 +58,7 @@ def test_both_market_signals_must_pass_and_news_is_optional():
     assert scanner.rebuild_alerts(conn, ["MSFT"]) == 0  # low relative volume
     conn.execute("UPDATE bars SET volume = 2500, close = 102")
     assert scanner.rebuild_alerts(conn, ["MSFT"]) == 0  # low price change
+    assert scanner.snapshot(et(9, 31), conn, ["MSFT"])[0]["news_released"] is False
 
 
 def test_scans_premarket_and_resets_volume_at_regular_open():
@@ -100,6 +101,19 @@ def test_generic_future_and_old_news_are_not_released():
     assert scanner.visible_alerts(et(9, 31), conn)[0]["headline"] is None
 
 
+def test_news_cutoff_compares_actual_instants_across_utc_offsets():
+    conn = scanner_db()
+    add_news(
+        conn,
+        datetime(2026, 9, 25, 9, 0, tzinfo=timezone(timedelta(hours=-5))),
+        "Microsoft announces a future partnership",
+    )
+    scanner.rebuild_alerts(conn, ["MSFT"])
+
+    assert scanner.snapshot(et(9, 31), conn, ["MSFT"])[0]["headline"] is None
+    assert scanner.snapshot(et(10, 0), conn, ["MSFT"])[0]["headline"].startswith("Microsoft")
+
+
 def test_snapshot_keeps_news_released_after_live_signals_fall_back():
     conn = scanner_db()
     add_news(conn, et(9, 20))
@@ -108,6 +122,11 @@ def test_snapshot_keeps_news_released_after_live_signals_fall_back():
         (config.iso(et(9, 32)),),
     )
     scanner.rebuild_alerts(conn, ["MSFT"])
+
+    before_signal = scanner.snapshot(et(9, 29), conn, ["MSFT"])[0]
+    assert before_signal["signals_passed"] == 0
+    assert before_signal["news_released"] is False
+    assert before_signal["headline"] is None
 
     before = scanner.snapshot(et(9, 30), conn, ["MSFT"])[0]
     assert before["signals_passed"] == 1
@@ -131,6 +150,27 @@ def test_snapshot_keeps_news_released_after_live_signals_fall_back():
     pulled_back = scanner.snapshot(et(9, 32), conn, ["MSFT"])[0]
     assert pulled_back["signals_passed"] == 0
     assert pulled_back["momentum_pass"] is False and pulled_back["rvol_pass"] is False
+    assert pulled_back["news_released"] is True
+    assert pulled_back["headline_url"] == "https://example.com/news"
+
+
+def test_price_signal_alone_releases_news_without_creating_an_alert():
+    conn = scanner_db()
+    add_news(conn, et(9, 20))
+    conn.execute("UPDATE bars SET volume = 100, close = 104 WHERE ts = ?", (config.iso(et(9, 30)),))
+    conn.execute("UPDATE bars SET volume = 100, close = 101 WHERE ts = ?", (config.iso(et(9, 31)),))
+
+    assert scanner.rebuild_alerts(conn, ["MSFT"]) == 0
+    assert scanner.visible_alerts(et(9, 31), conn) == []
+    first_signal = scanner.snapshot(et(9, 30), conn, ["MSFT"])[0]
+    assert first_signal["momentum_pass"] is True
+    assert first_signal["rvol_pass"] is False
+    assert first_signal["news_released"] is True
+    assert first_signal["headline_url"] == "https://example.com/news"
+    assert first_signal["qualified_at"] is None
+
+    pulled_back = scanner.snapshot(et(9, 31), conn, ["MSFT"])[0]
+    assert pulled_back["signals_passed"] == 0
     assert pulled_back["news_released"] is True
     assert pulled_back["headline_url"] == "https://example.com/news"
 
@@ -224,6 +264,32 @@ def test_alerts_http_contract_and_replay_visibility():
                 "id", "symbol", "time", "price", "change_pct", "rvol",
                 "rules_passed", "headline", "headline_url",
             }
+    finally:
+        db.use(None)
+        clock.reset()
+
+
+def test_market_snapshot_uses_one_replay_time_for_news_and_prices():
+    conn = scanner_db()
+    add_news(conn, et(9, 32), "Microsoft announces a later cloud agreement")
+    db.use(conn)
+    clock.reset()
+    try:
+        with TestClient(app) as api:
+            clock.seek(et(9, 30))
+            market = api.get("/market/snapshot").json()
+            msft = next(row for row in market["scanner"] if row["symbol"] == "MSFT")
+            assert market["replay"]["sim_time"] == config.iso(et(9, 30))
+            assert msft["news_released"] is False
+            assert msft["headline"] is None
+            assert msft["as_of"] == market["replay"]["sim_time"]
+            assert all(price["sim_time"] == market["replay"]["sim_time"] for price in market["prices"])
+
+            clock.seek(et(9, 40))
+            later = api.get("/market/snapshot").json()
+            msft = next(row for row in later["scanner"] if row["symbol"] == "MSFT")
+            assert msft["news_published_at"] == config.iso(et(9, 32))
+            assert datetime.fromisoformat(msft["news_published_at"]) <= datetime.fromisoformat(later["replay"]["sim_time"])
     finally:
         db.use(None)
         clock.reset()

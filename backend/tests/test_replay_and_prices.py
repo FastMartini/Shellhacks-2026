@@ -56,6 +56,21 @@ def test_speed_change_keeps_elapsed_time():
     assert c.sim_time == et(7, 15)
 
 
+def test_demo_speeds_advance_replay_and_stop_at_close():
+    ft = FakeTime()
+    c = ReplayClock(ft)
+    c.set_speed(300)
+    c.start()
+    ft.t = 30
+    assert c.sim_time == et(9, 30)
+    c.set_speed(600)
+    ft.t = 40
+    assert c.sim_time == et(11, 10)
+    ft.t = 100
+    assert c.sim_time == config.SCANNER_CLOSE
+    assert c.running is False
+
+
 def test_clock_stops_at_close():
     ft = FakeTime()
     c = ReplayClock(ft)

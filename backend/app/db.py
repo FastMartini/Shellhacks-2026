@@ -1,6 +1,6 @@
 """Shared SQLite schema (BUILD_SPEC.md → Architecture → Defaults).
 
-Timestamps (`bars.ts`, `news.published_at`, `alerts.ts`, `ledger.ts`) are ISO 8601 strings with the
+Timestamps (`bars.ts`, `news.published_at`, `news_triggers.ts`, `alerts.ts`, `ledger.ts`) are ISO 8601 strings with the
 Eastern offset, e.g. 2026-09-25T09:31:00-04:00, so they compare correctly as text within the replay day.
 `daily_bars.date` is YYYY-MM-DD. Money and quantities in `ledger` are integer base units (see config.UNITS).
 """
@@ -41,6 +41,10 @@ CREATE TABLE IF NOT EXISTS alerts (
     rules_passed TEXT NOT NULL,  -- JSON array
     headline TEXT,
     url TEXT
+);
+CREATE TABLE IF NOT EXISTS news_triggers (
+    symbol TEXT PRIMARY KEY,
+    ts TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS ledger (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

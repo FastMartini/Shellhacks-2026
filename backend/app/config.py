@@ -16,7 +16,7 @@ MARKET_CLOSE = datetime.combine(REPLAY_DATE, time(16, 0), tzinfo=ET)
 SCANNER_CLOSE = datetime.combine(REPLAY_DATE, time(16, 15), tzinfo=ET)
 
 DEFAULT_SPEED = 30
-MIN_SPEED, MAX_SPEED = 1, 60
+MIN_SPEED, MAX_SPEED = 1, 600
 
 SYMBOLS = [
     "AAPL", "AMD", "AMZN", "COIN", "GOOGL", "HOOD", "META", "MSFT", "MSTR", "NFLX",

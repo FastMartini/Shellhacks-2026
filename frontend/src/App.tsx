@@ -1,11 +1,11 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Transaction } from "@solana/web3.js";
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiRequestError, apiRequest } from "./api/client";
 import { submitSignedTrade } from "./api/trade";
-import type { FaucetResponse, Portfolio, PriceBar, PriceQuote, ReplayState, ScannerRow, TradeQuote, TransactionRow } from "./api/types";
+import type { FaucetResponse, MarketSnapshot, Portfolio, PriceBar, PriceQuote, ReplayState, ScannerRow, TradeQuote, TransactionRow } from "./api/types";
 import { EquityChart } from "./components/EquityChart";
 import { StatCard } from "./components/StatCard";
 import { StockChart } from "./components/StockChart";
@@ -83,20 +83,20 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [vaultFeedback, setVaultFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const marketRequestId = useRef(0);
 
   const loadMarket = useCallback(async (quiet = false) => {
+    const requestId = ++marketRequestId.current;
     if (!quiet) setLoading(true);
     try {
-      const [nextReplay, nextScannerRows, nextPrices] = await Promise.all([
-        apiRequest<ReplayState>("/replay/state"),
-        apiRequest<ScannerRow[]>("/scanner"),
-        apiRequest<PriceQuote[]>("/prices"),
-      ]);
-      setReplay(nextReplay); setScannerRows(nextScannerRows); setPrices(nextPrices); setError(null);
+      const snapshot = await apiRequest<MarketSnapshot>("/market/snapshot");
+      if (requestId !== marketRequestId.current) return;
+      setReplay(snapshot.replay); setScannerRows(snapshot.scanner); setPrices(snapshot.prices); setError(null);
     } catch (requestError) {
+      if (requestId !== marketRequestId.current) return;
       setError(requestError instanceof Error ? requestError.message : "The API is unavailable.");
     } finally {
-      if (!quiet) setLoading(false);
+      if (requestId === marketRequestId.current) setLoading(false);
     }
   }, []);
 
@@ -164,9 +164,10 @@ export default function App() {
   }
 
   async function controlReplay(action: "start" | "pause", speed?: number) {
+    ++marketRequestId.current;
     setWorking(true); setNotice(null);
     try {
-      setReplay(await apiRequest<ReplayState>("/replay/control", { method: "POST", body: JSON.stringify({ action, speed }) }));
+      await apiRequest<ReplayState>("/replay/control", { method: "POST", body: JSON.stringify({ action, speed }) });
       await loadMarket(true);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not control the replay.");
@@ -174,9 +175,10 @@ export default function App() {
   }
 
   async function jumpToNextAlert() {
+    ++marketRequestId.current;
     setWorking(true); setNotice(null);
     try {
-      setReplay(await apiRequest<ReplayState>("/replay/next-alert", { method: "POST" }));
+      await apiRequest<ReplayState>("/replay/next-alert", { method: "POST" });
       await loadMarket(true);
     } catch (requestError) {
       setNotice(requestError instanceof Error ? requestError.message : "No later alert is available.");
@@ -184,12 +186,13 @@ export default function App() {
   }
 
   async function resetReplayTimer() {
+    ++marketRequestId.current;
     setWorking(true); setNotice(null);
     try {
-      setReplay(await apiRequest<ReplayState>("/replay/control", {
+      await apiRequest<ReplayState>("/replay/control", {
         method: "POST",
         body: JSON.stringify({ action: "seek", to: new Date(REPLAY_START_MS).toISOString() }),
-      }));
+      });
       await loadMarket(true);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not reset the replay timer.");
@@ -294,14 +297,14 @@ export default function App() {
       {view === "landing" ? <Suspense fallback={<section className="hero-loading" aria-label="Loading interactive hero"><span>↑</span></section>}><HeroSection onLaunchDashboard={() => navigate("dashboard")} onExploreScanner={() => navigate("scanner")} /></Suspense> : view === "scanner" ? <>
         <section className="scanner-overview">
           <div className="panel alerts-panel">
-            <div className="panel-heading scanner-heading"><div><p className="eyebrow">Alpaca SIP scanner · 7:00 AM–4:15 PM ET</p><h2>Momentum monitor</h2><div className="signal-rules"><span>Momentum ≥ +3%</span><span>Relative volume ≥ 2×</span><span>News checked every 10 min</span></div></div><div className="scanner-heading-actions"><span>{scannerRows.length} stocks · {marketTime(scannerRows[0]?.as_of)} ET</span><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next signal →</button></div></div>
+            <div className="panel-heading scanner-heading"><div><p className="eyebrow">Alpaca SIP scanner · 7:00 AM–4:15 PM ET</p><h2>Momentum monitor</h2><div className="signal-rules"><span>Momentum ≥ +3%</span><span>Relative volume ≥ 2×</span><span>News after momentum · checked every 10 min</span></div></div><div className="scanner-heading-actions"><span>{scannerRows.length} stocks · {marketTime(scannerRows[0]?.as_of)} ET</span><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next signal →</button></div></div>
             {notice && <p className="notice">{notice}</p>}
             <div className="scanner-list" aria-label="Monitored stock signals">
               {loading ? <div className="empty-state">Loading scanner…</div> : scannerRows.map((row) => (
-                <div className={`scanner-row ${selectedSymbol === row.symbol ? "selected" : ""} ${row.news_released ? "qualified" : ""}`} key={row.symbol}>
+                <div className={`scanner-row ${selectedSymbol === row.symbol ? "selected" : ""} ${row.news_released ? "news-active" : ""}`} key={row.symbol}>
                   <button className="scanner-select" onClick={() => setSelectedSymbol(row.symbol)} aria-label={`Open ${row.symbol} chart`}>
                     <span className="ticker">{row.symbol}<small>{row.token_symbol}</small></span>
-                    <span className={row.momentum_pass ? "signal-value pass" : "signal-value"}><b>{signed(row.change_pct, "%")}</b><small>Momentum</small></span>
+                    <span className={row.momentum_pass ? "signal-value pass" : "signal-value"}><b className={row.change_pct < 0 ? "negative" : undefined}>{signed(row.change_pct, "%")}</b><small>Momentum</small></span>
                     <span className={row.rvol_pass ? "signal-value pass" : "signal-value"}><b>{row.rvol.toFixed(1)}×</b><small>Rel. volume</small></span>
                     <span className={`signal-count count-${row.signals_passed}`}><b>{row.signals_passed}/2</b><small>{row.signals_passed === 2 ? "Signal" : "Watching"}</small></span>
                   </button>
@@ -314,7 +317,7 @@ export default function App() {
             <div><span className={replay?.running ? "live-dot running" : "live-dot"} /> {replay?.running ? "Replay running" : "Replay paused"}<span className="session-badge">{marketSession(replay?.sim_time)}</span></div>
             <strong>{marketTime(replay?.sim_time)} ET</strong>
             <div className="replay-meta"><span>Friday, Sep 25</span><span>{replay?.speed ?? 30}× speed</span></div>
-            <label className="speed-control">Replay speed<select value={replay?.speed ?? 30} disabled={working} onChange={(event) => void controlReplay(replay?.running ? "start" : "pause", Number(event.target.value))}><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option></select></label>
+            <label className="speed-control">Replay speed<select value={replay?.speed ?? 30} disabled={working} onChange={(event) => void controlReplay(replay?.running ? "start" : "pause", Number(event.target.value))}><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option><option value="120">120×</option><option value="300">300×</option><option value="600">600×</option></select></label>
             <div className="replay-actions"><button className="reset-button" title={portfolio.deposited > 0 ? "Reset is unavailable after demo dollars are deposited" : "Return the replay clock to 7:00 AM"} disabled={working || loading || !canResetTimer} onClick={() => void resetReplayTimer()}>↺ Reset timer</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
           </div>
         </section>
