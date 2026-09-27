@@ -64,7 +64,7 @@ Agree on these shapes in the first hour. Every endpoint ships first as a stub re
 - The API returns money in USD rounded to 2 decimals and quantities to 6 decimals. SQLite stores both as integer base units (1 token = 1,000,000 units) so nothing drifts.
 - `sim_time` = the replay clock's time, ISO 8601 with the Eastern offset, e.g. `2026-09-25T09:47:00-04:00`. Trades are stamped with `sim_time` so the chart lines up with the replay.
 - `wallet` = the Phantom public key (base58). It is the user's account; there is no other login.
-- Errors: HTTP 4xx with `{"error": "<code>", "message": "<plain words>"}`.
+- Errors: HTTP 4xx with `{"error": "<code>", "message": "<plain words>"}`. The vault also returns 502 and 503, in the same shape, when devnet or its keypair is unavailable (section 3).
 
 ### 1. Price service and replay clock (Khalil)
 
@@ -108,9 +108,23 @@ The clock starts **paused at 9:25 AM** and stops itself at 4:00 PM. Seeking back
 | POST | `/demo/reset` | `{wallet}` | clears that wallet's ledger rows and resets the clock to 9:25 AM, paused |
 
 - **Signing order:** `tx_base64` is an **unsigned legacy transaction** with the vault as fee payer. Phantom signs first (`signTransaction`), the front-end serializes with `requireAllSignatures: false` and posts it to `/trade/submit`.
-- `/trade/submit` checks the message bytes match the quote, adds the vault's signature with `partial_sign`, sends it, waits for `confirmed` (up to ~30 s), writes the ledger row, and returns it. One call, so a page reload can't lose a trade.
+- `/trade/submit` checks the message bytes match the quote, adds the vault's signature with `partial_sign`, sends it, waits for `confirmed` (until the quote's blockhash expires, so up to ~90 s), writes the ledger row, and returns it. One call, so a page reload can't lose a trade.
 - An expired quote returns `409 quote_expired`; the ticket re-quotes.
+- **Retrying a submit never trades twice.** While a quote's submit is running, another returns `409 submit_in_progress`; once it has finished, the same quote returns the same row. After `502 chain_unavailable` the trade may have landed, so submit the same `quote_id` again rather than re-quoting: the backend checks whether it went through.
 - **Rounding:** buys burn exactly `usd_amount` and round `qty` down to 6 decimals. `sell_all: true` burns the exact on-chain balance.
+
+**Errors** (the ticket shows `message`):
+
+| Status | Code | When | Ticket |
+| --- | --- | --- | --- |
+| 400 | `invalid_wallet`, `invalid_amount`, `invalid_transaction`, `tx_mismatch`, `not_signed` | A bad request | Show the message |
+| 404 | `unknown_symbol` | Not one of the 19 stocks | Show the message |
+| 409 | `insufficient_funds`, `insufficient_shares` | The wallet can't cover the quote | Show the message |
+| 409 | `quote_expired` | The quote is over 30 s old, or its trade never landed | Re-quote |
+| 409 | `tx_failed` | Devnet rejected the transaction, or it failed on-chain; nothing changed | Re-quote |
+| 409 | `submit_in_progress` | The same quote is already being submitted | Wait for that submit |
+| 502 | `chain_unavailable` | Couldn't reach devnet. On `/trade/submit` the trade may have landed | Submit the same quote again; elsewhere, retry |
+| 503 | `vault_not_configured` | No vault keypair on this machine | Setup problem, not the user's |
 
 ### 4. Trade log and portfolio (Khalil)
 
