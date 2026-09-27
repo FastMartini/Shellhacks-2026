@@ -2,7 +2,7 @@
 
 What's left before the Sunday 10:30 AM submission, in the order it has to happen. Scope and contracts live in [`BUILD_SPEC.md`](BUILD_SPEC.md); this file only tracks who is doing what next.
 
-Last updated: Sat Sept 26, 9:34 PM ET. **Next checkpoint: 10:30 PM**, when the must-have loop works end to end (connect → demo dollars → buy → sell → log → total P/L).
+Last updated: Sat Sept 26, 10:25 PM ET. **Next checkpoint: 10:30 PM**, when the must-have loop works end to end (connect → demo dollars → buy → sell → log → total P/L).
 
 **How to use it**
 
@@ -13,11 +13,8 @@ Last updated: Sat Sept 26, 9:34 PM ET. **Next checkpoint: 10:30 PM**, when the m
 
 ## Now: 10:30 PM checkpoint (must-have loop)
 
-- [ ] **Matthew** · Merge #13 (real `/faucet`, `/trade/quote`, `/trade/submit`, `seed_demo.py`). Diego approved it; it's 8 commits behind `main`, so merge `main` in and rerun `pytest` first.
-- [ ] **Diego** · Open a PR for `fix/ui-changes` (Get demo dollars, quote → Phantom signs → submit, re-quote on `quote_expired`). Merge `main` in after #13 lands.
 - [ ] **Diego** · In the ticket, answer `502 chain_unavailable` from `/trade/submit` by submitting the same quote again; re-quote only on `quote_expired` or `tx_failed` (#17, spec section 3).
 - [ ] **Justin** · Add `SOLANA_RPC_URL` (Helius devnet URL) and `VAULT_KEYPAIR` to `backend/.env.example`. Everyone puts the Helius URL in `backend/.env`, and in `frontend/.env` as `VITE_SOLANA_RPC_URL`.
-- [ ] **Khalil** · Stop sharing one SQLite connection across threads (`backend/app/db.py`, `get()`). `/portfolio` and `/transactions` run in FastAPI's threadpool on a single `check_same_thread=False` connection, so the app's 2 s polling hits `sqlite3.InterfaceError` and returns 500: 20 of 563 requests in a local load test. That flickers the "Backend unavailable" banner and is what turns a successful faucet into #16's false "stub route" error. Use a connection per thread or a lock around each query, and make sure `ledger.record` (called from the async vault routes) can't hit the same error after a trade lands. (#16 review)
 - [ ] **Everyone** · Run the loop on devnet with Phantom (Testnet Mode on): connect → Get demo dollars → buy → click "Confirm (unsafe)" → sell → the log row has an explorer link → total P/L updates.
 
 ## Should tier (after the loop works)
@@ -64,7 +61,10 @@ Last updated: Sat Sept 26, 9:34 PM ET. **Next checkpoint: 10:30 PM**, when the m
 
 | When (ET) | What | PR |
 | --- | --- | --- |
+| Sat 10:25 PM | One SQLite connection per thread plus WAL: `/portfolio` and `/transactions` no longer 500 under polling (load test: 50 of 900 before, 0 after) | #19 |
 | Sat 9:34 PM | Vault error codes in the spec (both copies); a lost reply or dropped connection mid-trade no longer loses or doubles a trade | #17 |
+| Sat 9:08 PM | Frontend wired to the vault: Get demo dollars, quote → Phantom signs → submit | #16 |
+| Sat 8:44 PM | Real `/faucet`, `/trade/quote`, `/trade/submit`, `seed_demo.py` | #13 |
 | Sat 8:27 PM | Scanner fires 3 alerts on the real bars (AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM); dashboard, scanner feed, replay controls | #11 |
 | Sat 8:02 PM | Vault test run lands on devnet (Phantom's warning is expected); devnet setup script, 20 mints in `mints.json` | #9 |
 | Sat 6:46 PM | Replay data loader: Alpaca SIP minute bars, 20 daily baselines, Finnhub news | #8 |
