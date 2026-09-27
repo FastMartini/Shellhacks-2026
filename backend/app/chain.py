@@ -12,7 +12,7 @@ from pathlib import Path
 from solana.exceptions import SolanaRpcException
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
-from solana.rpc.core import RPCException, TransactionExpiredBlockheightExceededError
+from solana.rpc.core import RPCException, TransactionExpiredBlockheightExceededError, UnconfirmedTxError
 from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
 from solders.hash import Hash
 from solders.keypair import Keypair
@@ -20,6 +20,7 @@ from solders.message import Message
 from solders.pubkey import Pubkey
 from solders.signature import Signature
 from solders.transaction import Transaction
+from solders.transaction_status import TransactionConfirmationStatus
 from spl.token.constants import TOKEN_PROGRAM_ID
 from spl.token.instructions import (
     burn, create_idempotent_associated_token_account, get_associated_token_address, mint_to,
@@ -104,7 +105,8 @@ def unsigned_tx(message: Message) -> bytes:
 
 async def confirm(rpc: AsyncClient, sig: Signature, last_valid_block_height: int | None = None) -> None:
     """Waits for `confirmed`, then raises if the transaction failed: confirm_transaction returns either way.
-    Given the blockhash's last valid height, it gives up once the transaction can no longer land, not after 90 s."""
+    Given the blockhash's last valid height, it gives up once the transaction can no longer land, not after 90 s.
+    Raises UnconfirmedTxError if it landed but hadn't confirmed by then: check again later."""
     for attempt in range(CONFIRM_ATTEMPTS):
         try:
             resp = await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=POLL_S,
@@ -116,6 +118,11 @@ async def confirm(rpc: AsyncClient, sig: Signature, last_valid_block_height: int
             resp = await rpc.get_signature_statuses([sig], search_transaction_history=True)
             if resp.value[0] is None:
                 raise
+            if resp.value[0].confirmation_status not in (TransactionConfirmationStatus.Confirmed,
+                                                         TransactionConfirmationStatus.Finalized):
+                # Only processed, so it could still drop with its fork. It can't land anywhere else now, so the
+                # next look finds it confirmed or gone.
+                raise UnconfirmedTxError(f"{sig} has been processed but not confirmed")
             break
         except SolanaRpcException:  # a dropped connection says nothing about the transaction: ask again
             if attempt == CONFIRM_ATTEMPTS - 1:

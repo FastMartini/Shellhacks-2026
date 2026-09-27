@@ -15,7 +15,9 @@ from solana.rpc.core import RPCException, TransactionExpiredBlockheightExceededE
 from solders.hash import Hash
 from solders.keypair import Keypair
 from solders.transaction import Transaction
-from solders.transaction_status import InstructionErrorCustom, TransactionErrorInstructionError
+from solders.transaction_status import (
+    InstructionErrorCustom, TransactionConfirmationStatus, TransactionErrorInstructionError,
+)
 from spl.token.constants import TOKEN_PROGRAM_ID
 from spl.token.instructions import get_associated_token_address
 
@@ -51,6 +53,7 @@ class FakeRpc:
         self.drop_confirms = 0        # confirm calls that lose the connection first
         self.err = None            # on-chain error the confirmed status carries
         self.statuses: dict = {}   # signature → its on-chain error (None = succeeded), for every transaction that landed
+        self.confirmation = TransactionConfirmationStatus.Confirmed  # how far the landed transactions have got
 
     async def __aenter__(self):
         return self
@@ -88,11 +91,13 @@ class FakeRpc:
             raise network_error()
         if self.fail_confirm:
             raise self.fail_confirm
+        if self.confirmation == TransactionConfirmationStatus.Processed:  # not confirmed before the blockhash expired
+            raise TransactionExpiredBlockheightExceededError("expired")
         return SimpleNamespace(value=[SimpleNamespace(err=self.err)])
 
     async def get_signature_statuses(self, sigs, search_transaction_history=False):
-        return SimpleNamespace(value=[SimpleNamespace(err=self.statuses[s]) if s in self.statuses else None
-                                      for s in sigs])
+        return SimpleNamespace(value=[SimpleNamespace(err=self.statuses[s], confirmation_status=self.confirmation)
+                                      if s in self.statuses else None for s in sigs])
 
     def _apply(self, tx):
         """Burn (SPL instruction 8) and MintTo (7): amount is a u64 after the 1-byte tag."""
@@ -300,6 +305,19 @@ def test_a_resubmit_after_the_blockhash_expired_still_finds_a_trade_that_landed(
     assert submit(q).status_code == 502
     rpc.fail_confirm = TransactionExpiredBlockheightExceededError("expired")
     assert submit(q).status_code == 200 and len(ledger.rows(W)) == 1
+
+
+def test_a_trade_only_processed_when_the_blockhash_expires_is_not_recorded_until_it_confirms(rpc):
+    # The last look after the expiry can catch the trade at processed, and a processed transaction can still be
+    # dropped with its fork. So no row yet, and not quote_expired either: it may still confirm. Resubmitting checks.
+    q = buy_quote(rpc)
+    rpc.confirmation = TransactionConfirmationStatus.Processed
+    for _ in range(2):  # the submit, then a resubmit's recheck
+        r = submit(q)
+        assert (r.status_code, r.json()["error"]) == (502, "chain_unavailable") and ledger.rows(W) == []
+    rpc.confirmation = TransactionConfirmationStatus.Confirmed
+    assert submit(q).status_code == 200
+    assert len(rpc.sent) == 1 and len(ledger.rows(W)) == 1
 
 
 def test_rejects_a_transaction_other_than_the_quote(rpc):

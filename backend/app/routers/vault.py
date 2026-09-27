@@ -18,7 +18,7 @@ from typing import Literal
 from fastapi import APIRouter
 from pydantic import BaseModel
 from solana.exceptions import SolanaRpcException
-from solana.rpc.core import RPCException, TransactionExpiredBlockheightExceededError
+from solana.rpc.core import RPCException, TransactionExpiredBlockheightExceededError, UnconfirmedTxError
 from solders.keypair import Keypair
 from solders.message import Message
 from solders.pubkey import Pubkey
@@ -35,6 +35,9 @@ FAUCET_USD = 1000
 QUOTE_TTL_S = 30
 U = config.UNITS
 LOST_TOUCH = "Lost touch with Solana devnet mid-trade; submit again to check whether it went through"
+# The trade may have landed, but we couldn't see it confirm: devnet stopped answering, or it was only processed
+# when the blockhash expired.
+MAYBE_LANDED = (SolanaRpcException, UnconfirmedTxError)
 
 
 class WalletBody(BaseModel):
@@ -74,8 +77,8 @@ quotes: dict[str, Quote] = {}
 # a quote in flight answers 409 submit_in_progress, and a finished one returns the trade it already made.
 in_flight: set[str] = set()
 submitted: dict[str, tuple[str, int]] = {}  # quote_id → (wallet, ledger row id)
-# Sent, but devnet stopped answering before it confirmed. It may have landed, so a resubmit checks this signature
-# instead of sending again.
+# Sent, but not seen to confirm (MAYBE_LANDED). It may have landed, so a resubmit checks this signature instead of
+# sending again.
 unconfirmed: dict[str, tuple[Quote, Signature]] = {}
 
 
@@ -99,7 +102,7 @@ def _chain_errors(expired: tuple[str, str], unavailable: str = "Couldn't reach S
     """Turns devnet failures into the {error, message} shape. `expired` = (code, message) for a lapsed blockhash."""
     try:
         yield
-    except SolanaRpcException:
+    except MAYBE_LANDED:
         raise ApiError(502, "chain_unavailable", unavailable)
     except RPCException as e:  # e.g. preflight simulation failed
         raise ApiError(409, "tx_failed", f"Devnet rejected the transaction: {getattr(e.args[0], 'message', e)}")
@@ -233,7 +236,7 @@ async def _submit(qid: str, q: Quote, signed_tx_base64: str) -> dict:
         async with chain.client() as rpc:
             try:
                 await chain.send_and_confirm(rpc, tx, q.last_valid_block_height)
-            except SolanaRpcException:  # it may have landed: keep it so a resubmit can find out
+            except MAYBE_LANDED:  # keep it so a resubmit can find out
                 unconfirmed[qid] = (q, sig)
                 raise
     return _record(qid, q, sig)
@@ -245,7 +248,7 @@ async def _recheck(qid: str, q: Quote, sig: Signature) -> dict:
         async with chain.client() as rpc:
             try:
                 await chain.confirm(rpc, sig, q.last_valid_block_height)
-            except SolanaRpcException:
+            except MAYBE_LANDED:
                 raise  # still can't tell: keep it for the next resubmit
             except Exception:
                 unconfirmed.pop(qid, None)  # it failed or never landed: nothing left to check
