@@ -27,7 +27,7 @@ Last updated: Sun Sept 27, 12:40 AM ET. **Next checkpoint: 10:30 PM**, when the 
 ## Nice tier (only after the 10:30 PM checkpoint passes)
 
 - [ ] **Anyone** · Pick the hero arrow weight on a real screen. #23 ships Round 4a ("bold") from the Claude Design project; 4b ("heavy") is one word away: set `ARROW` to `ARROW_PRESETS.heavy` in `MomentumArrow.tsx`.
-- [ ] **Diego** · Decide whether the dashboard and scanner adopt the landing's look (Geist type, glass pill topbar). The design only covered the landing, so clicking through to the dashboard switches back to DM Sans and the old topbar.
+- [ ] **Diego** · Match the dashboard and scanner to the landing hero's style: Geist and Geist Mono type, the near-black `#050807` background with the green glow, the glass pill topbar, pill buttons, mono uppercase eyebrows and the `#a4ffd0` accent. Today those rules are scoped to `.landing-page` in `styles.css`, so clicking through from the landing switches back to DM Sans, Manrope and the old topbar. Mostly a matter of promoting those rules to the whole app and restyling cards and tables to fit. Land it before the 9:00 AM feature freeze, and rerun the must-have loop afterwards.
 - [ ] **Diego, Justin** · Show average win vs. average loss on the dashboard. `/portfolio` already returns `stats.avg_win` and `stats.avg_loss`; the UI shows only win and loss counts. Khalil's 1:40 demo line needs these.
 
 ## Demo, pitch and submission (Sunday)
