@@ -95,13 +95,6 @@ docs/                build spec, decisions, project notes
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how we branch, review and merge.
 
-## External code
-
-Built fresh for ShellHacks 2026. These two earlier projects were used as reference only; no code was copied:
-
-- [high-momentum-scanner](https://github.com/FastMartini/high-momentum-scanner)
-- [quantsim](https://github.com/Kpeguero16/quantsim)
-
 ## License
 
 See [`LICENSE`](LICENSE).
