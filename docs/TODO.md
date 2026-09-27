@@ -25,7 +25,7 @@ All done; see Done (#19, #21).
 
 - [ ] **Anyone** · Pick the hero arrow weight on a real screen. #23 ships Round 4a ("bold") from the Claude Design project; 4b ("heavy") is one word away: set `ARROW` to `ARROW_PRESETS.heavy` in `MomentumArrow.tsx`.
 - [ ] **Diego** · Match the dashboard and scanner to the landing hero's style: Geist and Geist Mono type, the near-black `#050807` background with the green glow, the glass pill topbar, pill buttons, mono uppercase eyebrows and the `#a4ffd0` accent. Today those rules are scoped to `.landing-page` in `styles.css`, so clicking through from the landing switches back to DM Sans, Manrope and the old topbar. Mostly a matter of promoting those rules to the whole app and restyling cards and tables to fit. Land it before the 9:00 AM feature freeze, and rerun the must-have loop afterwards.
-- [ ] **Diego, Justin** · Show average win vs. average loss on the dashboard. `/portfolio` already returns `stats.avg_win` and `stats.avg_loss`; the UI shows only win and loss counts. Khalil's 1:40 demo line needs these.
+- [x] **Diego, Justin** · Show average win vs. average loss on the dashboard using `/portfolio`'s `stats.avg_win` and `stats.avg_loss` for Khalil's 1:40 demo line.
 - [ ] **Khalil** · `/portfolio` rounds `cash` to the cent, but sells leave sub-cent units, so typing the full displayed cash can fail with "That costs $X but the wallet has $X". Floor spendable cash in `stats.portfolio`. (#16 review)
 - [ ] **Diego** · Portfolio load errors use the market "Backend unavailable" banner, which the market poll clears every 2 s, and its Retry reloads only market data. Give the portfolio its own error state, or have Retry reload both. (#16 review)
 
