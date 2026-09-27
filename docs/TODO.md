@@ -2,7 +2,7 @@
 
 What's left before the Sunday 10:30 AM submission, in the order it has to happen. Scope and contracts live in [`BUILD_SPEC.md`](BUILD_SPEC.md); this file only tracks who is doing what next.
 
-Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the must-have loop works end to end (connect → demo dollars → buy → sell → log → total P/L).
+Last updated: Sat Sept 26, 11:43 PM ET. **Next checkpoint: 10:30 PM**, when the must-have loop works end to end (connect → demo dollars → buy → sell → log → total P/L).
 
 **How to use it**
 
@@ -26,6 +26,7 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 
 ## Nice tier (only after the 10:30 PM checkpoint passes)
 
+- [ ] **Anyone** · Review the hero arrow design in #23. The loop mechanism works; the look is unreviewed. Every knob is a named constant at the top of `MomentumScene.tsx` — pull the branch, change numbers, say what reads better.
 - [ ] **Diego, Justin** · Show average win vs. average loss on the dashboard. `/portfolio` already returns `stats.avg_win` and `stats.avg_loss`; the UI shows only win and loss counts. Khalil's 1:40 demo line needs these.
 
 ## Demo, pitch and submission (Sunday)
@@ -33,6 +34,7 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 - [ ] **Justin** · Slides: peso vs. dollar (0:00), what's next (2:20).
 - [ ] **Justin** · Devpost draft: description, the two reference repos listed as external code, all 4 collaborators, repo link, Discord tag.
 - [ ] **Justin** · Opt into **Blackstone** and **MLH Best Use of Solana** on Devpost. Without this we aren't judged for either.
+- [ ] **Khalil, Matthew** · Decide what the demo opens on. #23 makes the landing page the default view, so the run sheet either starts there and clicks through, or opens on `#dashboard` and saves the hero for the end.
 - [ ] **Matthew** · Pre-demo run sheet: vault has devnet SOL, `/demo/reset`, `seed_demo.py`, demo wallet connected in Phantom, replay paused at 9:25 AM.
 - [ ] **Everyone** · 9:00 AM feature freeze: bug fixes only. Rehearse 3 times with a reset between runs and record a backup screen video.
 - [ ] **Justin** · Submit on Devpost by **10:30 AM** (code freeze 11:00 AM).
@@ -42,6 +44,7 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 - [ ] **Whoever merges #13 / the UI PR** · Update the README status table. The vault row still says the routes are stubs.
 - [ ] **Justin** · Tick the spec's setup checklist (both copies). Vault keypair, mints and `mints.json` are done. Helius and Phantom are still open.
 - [ ] **Khalil** · `DECISIONS.md` intro still says the folder holds "only planning docs, no code".
+- [ ] **Anyone** · Delete `frontend/src/App 2.tsx` and `frontend/src/styles 2.css`. Stale leftovers from the original Vite scaffold, untracked and deliberately left out of #23.
 - [ ] **Matthew** · Delete the stale branches `backend`, `dev`, `matthew-wallet` and `solana-testing`, which are 42+ commits behind `main`, once you've confirmed nothing on them is needed.
 
 ## Open questions
@@ -58,6 +61,7 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 
 | When (ET) | What | PR |
 | --- | --- | --- |
+| Sat 11:43 PM | Landing hero: animated momentum scene, lazy-loaded, with a reduced-motion and no-WebGL fallback | #23 |
 | Sat 8:27 PM | Scanner fires 3 alerts on the real bars (AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM); dashboard, scanner feed, replay controls | #11 |
 | Sat 8:02 PM | Vault test run lands on devnet (Phantom's warning is expected); devnet setup script, 20 mints in `mints.json` | #9 |
 | Sat 6:46 PM | Replay data loader: Alpaca SIP minute bars, 20 daily baselines, Finnhub news | #8 |
