@@ -82,7 +82,7 @@ Python code inside the backend calls these instead of HTTP:
 - `price_at(symbol, sim_time) -> float`: close of the last bar at or before `sim_time`. Before the first bar of the day it returns the previous session's close; after the last bar it returns the last close.
 - `volume_since(symbol, start, sim_time) -> int`: summed bar volume, for the relative-volume rule.
 
-The clock starts **paused at 9:25 AM** for the seeded demo and stops itself at 4:15 PM. It may seek as early as 4:00 AM so the scanner chart can inspect pre-market data. Seeking backwards is for rehearsal only, after `/demo/reset`.
+The clock starts **paused at 4:00 AM**, when the pre-market session begins, and stops itself at 4:15 PM. This lets the demo show how traders can react to early company news before the opening bell. Seeking backwards is for rehearsal only, after `/demo/reset`.
 
 ### 2. Alerts (Diego)
 
@@ -106,7 +106,7 @@ The clock starts **paused at 9:25 AM** for the seeded demo and stops itself at 4
 | POST | `/faucet` | `{wallet}` | `{signature, usd_amount: 1000}`, and a `deposit` ledger row. Once per wallet until `/demo/reset` |
 | POST | `/trade/quote` | `{wallet, symbol, side: "buy" \| "sell", usd_amount?, qty?, sell_all?}` | `{quote_id, symbol, side, price, qty, usd_amount, sim_time, expires_in_s: 30, tx_base64}` |
 | POST | `/trade/submit` | `{quote_id, signed_tx_base64}` | the transaction row from section 4 |
-| POST | `/demo/reset` | `{wallet}` | clears that wallet's ledger rows and resets the clock to 9:25 AM, paused |
+| POST | `/demo/reset` | `{wallet}` | clears that wallet's ledger rows and resets the clock to 4:00 AM, paused |
 
 - **Signing order:** `tx_base64` is an **unsigned legacy transaction** with the vault as fee payer. Phantom signs first (`signTransaction`), the front-end serializes with `requireAllSignatures: false` and posts it to `/trade/submit`.
 - `/trade/submit` checks the message bytes match the quote, adds the vault's signature with `partial_sign`, sends it, waits for `confirmed` (until the quote's blockhash expires, so up to ~90 s), writes the ledger row, and returns it. One call, so a page reload can't lose a trade.
@@ -190,7 +190,7 @@ All rules must pass for an alert. Long only. One alert per stock per day.
 
 **Scanner chart:** selecting an alert or tracked symbol opens its underlying stock's Alpaca SIP price/volume chart and labels the corresponding `x-demo` token. The chart supports 1-hour, 4-hour and full-session views, never shows bars ahead of the replay clock, and distinguishes pre-market, regular and post-market sessions.
 
-**Replay controls:** starts paused at 9:25 AM; start/pause; speed picker (1×, 10×, 30×, 60×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 9:25 AM while the wallet has no deposits; the clock stops at 4:15 PM.
+**Replay controls:** starts paused at 4:00 AM; start/pause; speed picker (1×, 10×, 30×, 60×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 4:00 AM while the wallet has no deposits; the clock stops at 4:15 PM.
 
 ## Vault
 
@@ -275,7 +275,7 @@ The critical path runs through Matthew: the bar download and the vault test both
 
 ## Demo script
 
-Three minutes, three speakers, **one live trade**. Before walking up: run `seed_demo.py`, which calls `/demo/reset`, burns leftover test tokens, puts the non-live trades in her log and leaves the replay paused at 9:25 AM. Then connect the demo wallet.
+Three minutes, three speakers, **one live trade**. Before walking up: run `seed_demo.py`, which calls `/demo/reset`, burns leftover test tokens, puts the non-live trades in her log and leaves the replay paused at 4:00 AM. Then connect the demo wallet and show the pre-market news edge.
 
 | Time | Speaker | On screen | Say |
 | --- | --- | --- | --- |

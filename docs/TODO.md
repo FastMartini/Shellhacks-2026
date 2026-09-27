@@ -32,7 +32,7 @@ All done; see Done (#19, #21).
 - [ ] **Justin** · Slides: peso vs. dollar (0:00), what's next (2:20).
 - [ ] **Justin** · Devpost draft: description, the two reference repos listed as external code, all 4 collaborators, repo link, Discord tag.
 - [ ] **Justin** · Opt into **Blackstone** and **MLH Best Use of Solana** on Devpost. Without this we aren't judged for either.
-- [ ] **Matthew** · Pre-demo run sheet: vault has devnet SOL, `seed_demo.py` (it runs `/demo/reset` and burns leftovers itself), demo wallet connected in Phantom, replay paused at 9:25 AM.
+- [ ] **Matthew** · Pre-demo run sheet: vault has devnet SOL, `seed_demo.py` (it runs `/demo/reset` and burns leftovers itself), demo wallet connected in Phantom, replay paused at 4:00 AM.
 - [ ] **Everyone** · 9:00 AM feature freeze: bug fixes only. Rehearse 3 times with a reset between runs and record a backup screen video.
 - [ ] **Justin** · Submit on Devpost by **10:30 AM** (code freeze 11:00 AM).
 

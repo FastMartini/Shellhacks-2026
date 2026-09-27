@@ -30,9 +30,9 @@ def conn():
     db.use(None)
 
 
-def test_clock_starts_paused_at_925():
+def test_clock_starts_paused_at_premarket_open():
     c = ReplayClock(FakeTime())
-    assert c.state() == {"mode": "replay", "sim_time": "2026-09-25T09:25:00-04:00", "speed": 30, "running": False}
+    assert c.state() == {"mode": "replay", "sim_time": "2026-09-25T04:00:00-04:00", "speed": 30, "running": False}
 
 
 def test_clock_advances_at_speed_and_pauses():
@@ -40,20 +40,20 @@ def test_clock_advances_at_speed_and_pauses():
     c = ReplayClock(ft)
     c.start()
     ft.t = 10  # 10 s wall × 30 = 5 sim minutes
-    assert c.sim_time == et(9, 30)
+    assert c.sim_time == et(4, 5)
     c.pause()
     ft.t = 100
-    assert c.sim_time == et(9, 30)
+    assert c.sim_time == et(4, 5)
 
 
 def test_speed_change_keeps_elapsed_time():
     ft = FakeTime()
     c = ReplayClock(ft)
     c.start()
-    ft.t = 10  # 9:30 at 30×
+    ft.t = 10  # 4:05 at 30×
     c.set_speed(60)
     ft.t = 20  # +10 min at 60×
-    assert c.sim_time == et(9, 40)
+    assert c.sim_time == et(4, 15)
 
 
 def test_clock_stops_at_close():
@@ -87,7 +87,7 @@ def test_price_at_uses_prev_close_then_last_bar(conn):
 
 def test_http_contracts(conn):
     api = TestClient(app)
-    assert api.get("/replay/state").json()["sim_time"] == "2026-09-25T09:25:00-04:00"
+    assert api.get("/replay/state").json()["sim_time"] == "2026-09-25T04:00:00-04:00"
 
     state = api.post("/replay/control", json={"action": "seek", "to": "2026-09-25T10:00:00-04:00"}).json()
     assert state == {"mode": "replay", "sim_time": "2026-09-25T10:00:00-04:00", "speed": 30, "running": False}

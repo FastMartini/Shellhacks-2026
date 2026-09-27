@@ -30,7 +30,7 @@ def seeded(rpc, monkeypatch):  # noqa: F811
     return rpc
 
 
-def test_seed_rebuilds_the_log_and_leaves_the_clock_at_925(seeded):
+def test_seed_rebuilds_the_log_and_leaves_the_clock_at_premarket_open(seeded):
     rpc = seeded
     rpc.balances[(SOFIA.pubkey(), MINTS["AKAM"])] = 3 * U       # left from the last rehearsal
     rpc.balances[(SOFIA.pubkey(), MINTS["dUSD"])] = 250 * U
@@ -48,7 +48,7 @@ def test_seed_rebuilds_the_log_and_leaves_the_clock_at_925(seeded):
     p = TestClient(app).get("/portfolio", params={"wallet": W}).json()
     assert round(rpc.balances[(SOFIA.pubkey(), MINTS["dUSD"])] / U, 2) == p["cash"] == 843.04
     assert (p["stats"]["win_count"], p["stats"]["loss_count"]) == (1, 1)
-    assert clock.state() == {"mode": "replay", "sim_time": "2026-09-25T09:25:00-04:00", "speed": 30, "running": False}
+    assert clock.state() == {"mode": "replay", "sim_time": "2026-09-25T04:00:00-04:00", "speed": 30, "running": False}
 
 
 def test_seed_retries_a_failed_transaction(seeded):

@@ -13,7 +13,7 @@ class ReplayClock:
         self.reset()
 
     def reset(self) -> None:
-        """Back to 9:25 AM, paused, default speed."""
+        """Back to the 4:00 AM pre-market open, paused, at default speed."""
         self.speed = config.DEFAULT_SPEED
         self.running = False
         self._anchor_sim = config.REPLAY_START

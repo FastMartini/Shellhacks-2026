@@ -85,7 +85,7 @@ From `backend/`, with the API running:
 ./venv/bin/python -m scripts.seed_demo               # reset, burn leftovers, pre-run the non-live trades
 ```
 
-`seed_demo.py` leaves the replay paused at 9:25 AM, ready for the live trade. `--dry-run` prices the script from SQLite without touching the chain. The full run sheet is the demo script in [`docs/BUILD_SPEC.md`](docs/BUILD_SPEC.md#demo-script).
+`seed_demo.py` leaves the replay paused at 4:00 AM, ready to show how early news gives pre-market traders an edge before the live trade. `--dry-run` prices the script from SQLite without touching the chain. The full run sheet is the demo script in [`docs/BUILD_SPEC.md`](docs/BUILD_SPEC.md#demo-script).
 
 ## Repo layout
 
