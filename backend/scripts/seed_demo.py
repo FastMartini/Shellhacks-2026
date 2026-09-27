@@ -1,14 +1,14 @@
 """Pre-runs the demo's scripted non-live trades with the demo wallet's key (BUILD_SPEC.md → Demo script).
 
 Before walking up: start the API, run this, then connect the demo wallet in Phantom. It:
-1. Calls /demo/reset: her ledger is cleared and the clock goes back to the 4:00 AM pre-market open.
+1. Calls /demo/reset: her ledger is cleared and the clock goes back to the 7:00 AM demo start.
 2. Burns the test tokens left from the last rehearsal, so the chain matches the empty ledger. sell_all sells
    her on-chain balance, so leftovers would skew the live trade's P/L.
 3. Seeks the replay to each scripted time and trades through the real API, the same path as the front-end:
    /faucet, /trade/quote, sign with her key as Phantom would, /trade/submit. An expired quote is re-quoted and
    a failed transaction is retried; both changed nothing on-chain. If devnet stops answering mid-trade, the same
    submit is sent again, which checks whether the trade landed instead of trading twice.
-4. Seeks back to 4:00 AM, paused, ready to replay early news and the live trade.
+4. Seeks back to 7:00 AM, paused, ready to replay early news and the live trade.
 
 Run from backend/ with the API up (uvicorn app.main:app) on the same machine, since step 2 uses the vault key:
     ./venv/bin/python -m scripts.seed_demo            # API at http://127.0.0.1:8000, or set API_URL
@@ -162,7 +162,7 @@ def seed() -> None:
 
     api.ok("/replay/control", {"action": "seek", "to": config.iso(config.REPLAY_START)})
     summarize(api.get("/portfolio", wallet=wallet))
-    print("Clock paused at 4:00 AM. Connect the demo wallet in Phantom and start the pre-market replay.")
+    print("Clock paused at 7:00 AM. Connect the demo wallet in Phantom and start the pre-market replay.")
 
 
 def dry_run() -> None:
@@ -197,7 +197,7 @@ def dry_run() -> None:
 def summarize(p: dict) -> None:
     s = p["stats"]
     held = ", ".join(f"{h['qty']:g} {h['symbol']}" for h in p["holdings"]) or "nothing"
-    print(f"At 4:00 AM: cash ${p['cash']:.2f}, holding {held}, total ${p['total_value']:.2f}, "
+    print(f"At 7:00 AM: cash ${p['cash']:.2f}, holding {held}, total ${p['total_value']:.2f}, "
           f"P/L {s['total_pl']:+.2f} ({s['win_count']} win, {s['loss_count']} loss)")
 
 

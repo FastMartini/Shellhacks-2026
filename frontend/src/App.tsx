@@ -17,7 +17,7 @@ const EMPTY_PORTFOLIO: Portfolio = {
   equity_curve: [],
 };
 
-const REPLAY_START_MS = new Date("2026-09-25T04:00:00-04:00").getTime();
+const REPLAY_START_MS = new Date("2026-09-25T07:00:00-04:00").getTime();
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -276,18 +276,18 @@ export default function App() {
       {view === "scanner" ? <>
         <section className="scanner-overview">
           <div className="panel alerts-panel">
-            <div className="panel-heading scanner-heading"><div><p className="eyebrow">Alpaca SIP scanner · 4:00 AM–4:15 PM ET</p><h2>Minute-by-minute monitor</h2><div className="signal-rules"><span>Momentum ≥ +3%</span><span>Relative volume ≥ 2×</span></div></div><div className="scanner-heading-actions"><span>{scannerRows.length} stocks · {marketTime(scannerRows[0]?.as_of)} ET</span><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next signal →</button></div></div>
+            <div className="panel-heading scanner-heading"><div><p className="eyebrow">Alpaca SIP scanner · 7:00 AM–4:15 PM ET</p><h2>Minute-by-minute monitor</h2><div className="signal-rules"><span>Momentum ≥ +3%</span><span>Relative volume ≥ 2×</span></div></div><div className="scanner-heading-actions"><span>{scannerRows.length} stocks · {marketTime(scannerRows[0]?.as_of)} ET</span><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next signal →</button></div></div>
             {notice && <p className="notice">{notice}</p>}
             <div className="scanner-list" aria-label="Monitored stock signals">
               {loading ? <div className="empty-state">Loading scanner…</div> : scannerRows.map((row) => (
-                <div className={`scanner-row ${selectedSymbol === row.symbol ? "selected" : ""} ${row.signals_passed === 2 ? "qualified" : ""}`} key={row.symbol}>
+                <div className={`scanner-row ${selectedSymbol === row.symbol ? "selected" : ""} ${row.news_released ? "qualified" : ""}`} key={row.symbol}>
                   <button className="scanner-select" onClick={() => setSelectedSymbol(row.symbol)} aria-label={`Open ${row.symbol} chart`}>
                     <span className="ticker">{row.symbol}<small>{row.token_symbol}</small></span>
                     <span className={row.momentum_pass ? "signal-value pass" : "signal-value"}><b>{signed(row.change_pct, "%")}</b><small>Momentum</small></span>
                     <span className={row.rvol_pass ? "signal-value pass" : "signal-value"}><b>{row.rvol.toFixed(1)}×</b><small>Rel. volume</small></span>
                     <span className={`signal-count count-${row.signals_passed}`}><b>{row.signals_passed}/2</b><small>{row.signals_passed === 2 ? "Signal" : "Watching"}</small></span>
                   </button>
-                  <span className="scanner-news">{row.signals_passed === 2 ? (row.headline_url ? <a href={row.headline_url} target="_blank" rel="noreferrer" title={row.headline ?? "Company news"}>News ↗</a> : <small>News pending</small>) : <small>Locked</small>}</span>
+                  <span className="scanner-news">{row.news_released ? (row.headline_url ? <a href={row.headline_url} target="_blank" rel="noreferrer" title={row.headline ?? "Company news"}>News ↗</a> : <small>News pending</small>) : <small>Monitoring</small>}</span>
                 </div>
               ))}
             </div>
@@ -297,7 +297,7 @@ export default function App() {
             <strong>{marketTime(replay?.sim_time)} ET</strong>
             <div className="replay-meta"><span>Friday, Sep 25</span><span>{replay?.speed ?? 30}× speed</span></div>
             <label className="speed-control">Replay speed<select value={replay?.speed ?? 30} disabled={working} onChange={(event) => void controlReplay(replay?.running ? "start" : "pause", Number(event.target.value))}><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option></select></label>
-            <div className="replay-actions"><button className="reset-button" title={portfolio.deposited > 0 ? "Reset is unavailable after demo dollars are deposited" : "Return the replay clock to 4:00 AM"} disabled={working || loading || !canResetTimer} onClick={() => void resetReplayTimer()}>↺ Reset timer</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
+            <div className="replay-actions"><button className="reset-button" title={portfolio.deposited > 0 ? "Reset is unavailable after demo dollars are deposited" : "Return the replay clock to 7:00 AM"} disabled={working || loading || !canResetTimer} onClick={() => void resetReplayTimer()}>↺ Reset timer</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
           </div>
         </section>
 

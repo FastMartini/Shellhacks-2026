@@ -10,7 +10,7 @@ ET = ZoneInfo("America/New_York")
 
 REPLAY_DATE = date(2026, 9, 25)
 PREMARKET_OPEN = datetime.combine(REPLAY_DATE, time(4, 0), tzinfo=ET)
-REPLAY_START = PREMARKET_OPEN
+REPLAY_START = datetime.combine(REPLAY_DATE, time(7, 0), tzinfo=ET)
 MARKET_OPEN = datetime.combine(REPLAY_DATE, time(9, 30), tzinfo=ET)
 MARKET_CLOSE = datetime.combine(REPLAY_DATE, time(16, 0), tzinfo=ET)
 SCANNER_CLOSE = datetime.combine(REPLAY_DATE, time(16, 15), tzinfo=ET)

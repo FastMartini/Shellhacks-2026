@@ -105,19 +105,31 @@ def _signal_metrics(conn: sqlite3.Connection, symbol: str, at: datetime) -> dict
 
 
 def snapshot(at: datetime, conn: sqlite3.Connection | None = None, symbols: list[str] | None = None) -> list[dict]:
-    """All monitored stocks at the current replay minute; news unlocks after both signals pass."""
+    """All monitored stocks; released news stays available after the first 2/2 signal."""
     conn = conn or db.get()
     symbols = symbols or config.SYMBOLS
     rows = []
     for symbol in symbols:
         metrics = _signal_metrics(conn, symbol, at)
-        both_pass = metrics["momentum_pass"] and metrics["rvol_pass"]
-        catalyst = _latest_catalyst(_quality_news(conn, symbol), symbol, datetime.fromisoformat(metrics["as_of"])) if both_pass else None
+        release = conn.execute(
+            "SELECT ts FROM alerts WHERE symbol = ? AND ts <= ? ORDER BY ts LIMIT 1",
+            (symbol, metrics["as_of"]),
+        ).fetchone()
+        news_released = release is not None
+        catalyst = (
+            _latest_catalyst(
+                _quality_news(conn, symbol), symbol, datetime.fromisoformat(metrics["as_of"])
+            )
+            if news_released
+            else None
+        )
         rows.append({
             "symbol": symbol,
             "token_symbol": f"{symbol}x-demo",
             **metrics,
             "signals_passed": int(metrics["momentum_pass"]) + int(metrics["rvol_pass"]),
+            "news_released": news_released,
+            "qualified_at": release["ts"] if release else None,
             "headline": catalyst["headline"] if catalyst else None,
             "headline_url": catalyst["url"] if catalyst else None,
         })

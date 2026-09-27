@@ -76,14 +76,14 @@ Agree on these shapes in the first hour. Every endpoint ships first as a stub re
 | GET | `/prices` | `[{symbol, price, prev_close, change_pct, sim_time}]` for all 19 |
 | GET | `/prices/{symbol}` | one of the above |
 | GET | `/prices/{symbol}/history` | Alpaca minute bars reached by the replay clock: `[{time, open, high, low, close, volume}]` |
-| GET | `/scanner` | all 19 stock rows for the current replay minute: price change, RVOL, two signal states, and news unlocked only at 2/2 |
+| GET | `/scanner` | all 19 stock rows for the current replay minute: price change, RVOL, two live signal states, and sticky news-release state after the stock first reaches 2/2 |
 
 Python code inside the backend calls these instead of HTTP:
 
 - `price_at(symbol, sim_time) -> float`: close of the last bar at or before `sim_time`. Before the first bar of the day it returns the previous session's close; after the last bar it returns the last close.
 - `volume_since(symbol, start, sim_time) -> int`: summed bar volume, for the relative-volume rule.
 
-The clock starts **paused at 4:00 AM**, when the pre-market session begins, and stops itself at 4:15 PM. This lets the demo show how traders can react to early company news before the opening bell. Seeking backwards is for rehearsal only, after `/demo/reset`.
+The clock starts **paused at 7:00 AM** and stops itself at 4:15 PM. Alpaca bars remain available from the 4:00 AM pre-market open so signal calculations preserve the full session context. Seeking backwards is for rehearsal only, after `/demo/reset`.
 
 ### 2. Alerts (Diego)
 
@@ -98,7 +98,7 @@ The clock starts **paused at 4:00 AM**, when the pre-market session begins, and 
 
 - The scanner runs over the whole replay day at startup, stores every alert in SQLite, and `/alerts` reveals only the ones the clock has passed.
 - `/scanner` always returns every monitored stock at the replay clock's current minute. Values change only when the minute changes, even though the UI polls more frequently.
-- An alert requires the two market signals: price at least 3% above the previous close and RVOL at least 2× its session-adjusted average. Company news is context, not a third signal; its link stays hidden until both signals pass.
+- An alert requires the two market signals: price at least 3% above the previous close and RVOL at least 2× its session-adjusted average. Company news is context, not a third signal; after both signals first pass, its release state persists even if live momentum or RVOL later falls.
 - **At most one alert per stock per day.**
 - **No look-ahead:** the news rule and the headline only use news with `published_at` at or before the alert time.
 
@@ -109,7 +109,7 @@ The clock starts **paused at 4:00 AM**, when the pre-market session begins, and 
 | POST | `/faucet` | `{wallet}` | `{signature, usd_amount: 1000}`, and a `deposit` ledger row. Once per wallet until `/demo/reset` |
 | POST | `/trade/quote` | `{wallet, symbol, side: "buy" \| "sell", usd_amount?, qty?, sell_all?}` | `{quote_id, symbol, side, price, qty, usd_amount, sim_time, expires_in_s: 30, tx_base64}` |
 | POST | `/trade/submit` | `{quote_id, signed_tx_base64}` | the transaction row from section 4 |
-| POST | `/demo/reset` | `{wallet}` | clears that wallet's ledger rows and resets the clock to 4:00 AM, paused |
+| POST | `/demo/reset` | `{wallet}` | clears that wallet's ledger rows and resets the clock to 7:00 AM, paused |
 
 - **Signing order:** `tx_base64` is an **unsigned legacy transaction** with the vault as fee payer. Phantom signs first (`signTransaction`), the front-end serializes with `requireAllSignatures: false` and posts it to `/trade/submit`.
 - `/trade/submit` checks the message bytes match the quote, adds the vault's signature with `partial_sign`, sends it, waits for `confirmed` (until the quote's blockhash expires, so up to ~90 s), writes the ledger row, and returns it. One call, so a page reload can't lose a trade.
@@ -164,7 +164,7 @@ The placeholders add up: deposit $1,000; AKAM $300 buy then sell (+$11.25); TSLA
 
 ## Scanner
 
-The scanner evaluates real Alpaca bars from 4:00 AM through 4:15 PM ET, covering pre-market, the regular session, and the first 15 post-close minutes. On Friday Sept 25, 2026 it still fires 3 alerts: AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM. The thresholds live in `backend/app/config.py`.
+The scanner uses real Alpaca bars from 4:00 AM through 4:15 PM ET for complete session calculations; the visible replay starts at 7:00 AM to shorten the demo. On Friday Sept 25, 2026 it still fires 3 alerts: AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM. The thresholds live in `backend/app/config.py`.
 
 | Rule | Reference scanner | This build |
 | --- | --- | --- |
@@ -174,7 +174,7 @@ The scanner evaluates real Alpaca bars from 4:00 AM through 4:15 PM ET, covering
 | Price range | $2–$20 | Dropped (tokens are fractional) |
 | Float | < 20M shares | Dropped. Optional replacement: breaks above the pre-market high |
 
-Both market signals must pass for an alert. Long only. One alert per stock per day. If no qualifying company article exists, the signal remains valid and the UI shows that news is pending instead of inventing a link.
+Both market signals must pass for an alert. Long only. One alert per stock per day. Once released, a stock's news stays released for the rest of the forward replay even when its live signal count falls below 2/2. If no qualifying company article exists, the signal remains valid and the UI shows that news is pending instead of inventing a link.
 
 **Stock list (19, all on xStocks):** AAPL, AMD, AMZN, COIN, GOOGL, HOOD, META, MSFT, MSTR, NFLX, NVDA, PLTR, QQQ, SPY, TSLA, plus Friday's movers AKAM, DDOG, INTC, ZS. Mock mints on devnet use the same tickers with a `-demo` suffix (e.g. `AKAMx-demo`). There are 20 total mints because `dUSD` is the twentieth; it is cash, not a stock, and is not scanned.
 
@@ -193,7 +193,7 @@ Both market signals must pass for an alert. Long only. One alert per stock per d
 
 **Scanner chart:** selecting an alert or tracked symbol opens its underlying stock's Alpaca SIP price/volume chart and labels the corresponding `x-demo` token. The chart supports 1-hour, 4-hour and full-session views, never shows bars ahead of the replay clock, and distinguishes pre-market, regular and post-market sessions.
 
-**Replay controls:** starts paused at 4:00 AM; start/pause; speed picker (1×, 10×, 30×, 60×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 4:00 AM while the wallet has no deposits; the clock stops at 4:15 PM.
+**Replay controls:** starts paused at 7:00 AM; start/pause; speed picker (1×, 10×, 30×, 60×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 7:00 AM while the wallet has no deposits; the clock stops at 4:15 PM.
 
 ## Vault
 
@@ -278,7 +278,7 @@ The critical path runs through Matthew: the bar download and the vault test both
 
 ## Demo script
 
-Three minutes, three speakers, **one live trade**. Before walking up: run `seed_demo.py`, which calls `/demo/reset`, burns leftover test tokens, puts the non-live trades in her log and leaves the replay paused at 4:00 AM. Then connect the demo wallet and show the pre-market news edge.
+Three minutes, three speakers, **one live trade**. Before walking up: run `seed_demo.py`, which calls `/demo/reset`, burns leftover test tokens, puts the non-live trades in her log and leaves the replay paused at 7:00 AM. Then connect the demo wallet and show the pre-market news edge.
 
 | Time | Speaker | On screen | Say |
 | --- | --- | --- | --- |

@@ -95,20 +95,34 @@ def test_generic_future_and_old_news_are_not_released():
     assert scanner.visible_alerts(et(9, 31), conn)[0]["headline"] is None
 
 
-def test_snapshot_monitors_every_symbol_and_unlocks_news_after_two_signals():
+def test_snapshot_keeps_news_released_after_live_signals_fall_back():
     conn = scanner_db()
     add_news(conn, et(9, 20))
+    conn.execute(
+        "INSERT INTO bars VALUES ('MSFT', ?, 100, 102, 100, 101, 100)",
+        (config.iso(et(9, 32)),),
+    )
+    scanner.rebuild_alerts(conn, ["MSFT"])
 
     before = scanner.snapshot(et(9, 30), conn, ["MSFT"])[0]
     assert before["signals_passed"] == 1
     assert before["momentum_pass"] is False and before["rvol_pass"] is True
+    assert before["news_released"] is False and before["qualified_at"] is None
     assert before["headline"] is None and before["headline_url"] is None
 
     qualified = scanner.snapshot(et(9, 31), conn, ["MSFT"])[0]
     assert qualified["signals_passed"] == 2
+    assert qualified["news_released"] is True
+    assert qualified["qualified_at"] == config.iso(et(9, 31))
     assert qualified["headline"].startswith("Microsoft")
     assert qualified["headline_url"] == "https://example.com/news"
     assert qualified["as_of"].endswith("09:31:00-04:00")
+
+    pulled_back = scanner.snapshot(et(9, 32), conn, ["MSFT"])[0]
+    assert pulled_back["signals_passed"] == 0
+    assert pulled_back["momentum_pass"] is False and pulled_back["rvol_pass"] is False
+    assert pulled_back["news_released"] is True
+    assert pulled_back["headline_url"] == "https://example.com/news"
 
 
 def test_precomputes_one_alert_but_hides_it_until_replay_reaches_it():
@@ -145,7 +159,8 @@ def test_alerts_http_contract_and_replay_visibility():
             assert len(monitored) == len(config.SYMBOLS)
             assert set(monitored[0]) == {
                 "symbol", "token_symbol", "price", "change_pct", "rvol", "momentum_pass",
-                "rvol_pass", "signals_passed", "as_of", "headline", "headline_url",
+                "rvol_pass", "signals_passed", "as_of", "news_released", "qualified_at",
+                "headline", "headline_url",
             }
             state = api.post("/replay/next-alert").json()
             assert state["sim_time"] == config.iso(et(9, 31))
