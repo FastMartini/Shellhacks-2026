@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from .. import config, db, prices
+from .. import config, db, prices, scanner
 from ..errors import ApiError
 from ..replay import clock
 
@@ -22,6 +22,19 @@ class ReplayControl(BaseModel):
 @router.get("/replay/state")
 def replay_state():
     return clock.state()
+
+
+@router.get("/market/snapshot")
+def market_snapshot():
+    """One clock reading for the replay state, scanner news, and prices."""
+    state = clock.state()
+    at = datetime.fromisoformat(state["sim_time"])
+    conn = db.get()
+    return {
+        "replay": state,
+        "scanner": scanner.snapshot(at, conn),
+        "prices": [prices.quote(symbol, at, conn) for symbol in config.SYMBOLS],
+    }
 
 
 @router.post("/replay/control")

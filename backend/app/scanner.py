@@ -58,9 +58,11 @@ def _quality_news(conn: sqlite3.Connection, symbol: str) -> list[sqlite3.Row]:
 
 
 def _latest_catalyst(rows: list[sqlite3.Row], symbol: str, at: datetime) -> sqlite3.Row | None:
-    start = config.iso(at - timedelta(hours=config.NEWS_LOOKBACK_HOURS))
-    end = config.iso(at)
-    eligible = [row for row in rows if start <= row["published_at"] <= end]
+    start = at - timedelta(hours=config.NEWS_LOOKBACK_HOURS)
+    eligible = [
+        row for row in rows
+        if start <= datetime.fromisoformat(row["published_at"]) <= at
+    ]
     if not eligible:
         return None
     identity_terms = config.NEWS_IDENTITY_TERMS.get(symbol, ())
@@ -138,20 +140,24 @@ def _signal_metrics(conn: sqlite3.Connection, symbol: str, at: datetime) -> dict
 
 
 def snapshot(at: datetime, conn: sqlite3.Connection | None = None, symbols: list[str] | None = None) -> list[dict]:
-    """All monitored stocks; released news stays available after the first 2/2 signal."""
+    """All monitored stocks; released news stays available after momentum first passes."""
     conn = conn or db.get()
     symbols = symbols or config.SYMBOLS
     rows = []
     for symbol in symbols:
         metrics = _signal_metrics(conn, symbol, at)
-        release = conn.execute(
+        news_trigger = conn.execute(
+            "SELECT ts FROM news_triggers WHERE symbol = ? AND ts <= ?",
+            (symbol, metrics["as_of"]),
+        ).fetchone()
+        alert = conn.execute(
             "SELECT ts FROM alerts WHERE symbol = ? AND ts <= ? ORDER BY ts LIMIT 1",
             (symbol, metrics["as_of"]),
         ).fetchone()
-        news_released = release is not None
+        news_released = news_trigger is not None
         checked_at = _news_check_time(datetime.fromisoformat(metrics["as_of"]))
         news_rows = _quality_news(conn, symbol) if news_released else []
-        released_at = datetime.fromisoformat(release["ts"]) if release else None
+        released_at = datetime.fromisoformat(news_trigger["ts"]) if news_trigger else None
         catalyst = (
             _released_catalyst(news_rows, symbol, released_at, checked_at)
             if released_at
@@ -174,7 +180,7 @@ def snapshot(at: datetime, conn: sqlite3.Connection | None = None, symbols: list
             **metrics,
             "signals_passed": int(metrics["momentum_pass"]) + int(metrics["rvol_pass"]),
             "news_released": news_released,
-            "qualified_at": release["ts"] if release else None,
+            "qualified_at": alert["ts"] if alert else None,
             "news_checked_at": config.iso(checked_at),
             "news_is_new": news_is_new,
             "news_published_at": catalyst["published_at"] if catalyst else None,
@@ -184,13 +190,14 @@ def snapshot(at: datetime, conn: sqlite3.Connection | None = None, symbols: list
     return rows
 
 
-def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
+def _first_events(conn: sqlite3.Connection, symbol: str) -> tuple[dict | None, str | None]:
     previous_close = prices.prev_close(symbol, conn)
     average_daily_volume = _daily_average_volume(conn, symbol)
     if previous_close <= 0 or not average_daily_volume:
-        return None
+        return None, None
 
     news_rows = _quality_news(conn, symbol)
+    first_momentum_at = None
 
     cumulative_volume = 0
     volume_window_start: datetime | None = None
@@ -213,7 +220,13 @@ def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
         relative_volume = cumulative_volume / expected_volume if expected_volume else 0.0
         change_pct = (bar["close"] / previous_close - 1) * 100
 
-        if change_pct < config.MIN_CHANGE_PCT or relative_volume < config.MIN_RVOL:
+        momentum_pass = change_pct >= config.MIN_CHANGE_PCT
+        rvol_pass = relative_volume >= config.MIN_RVOL
+        if not momentum_pass:
+            continue
+        if first_momentum_at is None:
+            first_momentum_at = config.iso(at)
+        if not rvol_pass:
             continue
         catalyst = _latest_catalyst(news_rows, symbol, _news_check_time(at))
         return {
@@ -226,20 +239,26 @@ def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
             "rules_passed": ["change", "rvol"],
             "headline": catalyst["headline"] if catalyst else None,
             "headline_url": catalyst["url"] if catalyst else None,
-        }
-    return None
+        }, first_momentum_at
+    return None, first_momentum_at
 
 
 def rebuild_alerts(
     conn: sqlite3.Connection | None = None, symbols: list[str] | None = None
 ) -> int:
-    """Replace computed alerts with the first qualifying alert per symbol."""
+    """Replace each symbol's first news trigger and qualifying alert."""
     conn = conn or db.get()
     symbols = symbols or config.SYMBOLS
     marks = ",".join("?" for _ in symbols)
-    alerts = [alert for symbol in symbols if (alert := _first_alert(conn, symbol)) is not None]
+    events = [(symbol, *_first_events(conn, symbol)) for symbol in symbols]
+    alerts = [alert for _, alert, _ in events if alert is not None]
     with conn:
         conn.execute(f"DELETE FROM alerts WHERE symbol IN ({marks})", symbols)
+        conn.execute(f"DELETE FROM news_triggers WHERE symbol IN ({marks})", symbols)
+        conn.executemany(
+            "INSERT INTO news_triggers (symbol, ts) VALUES (?, ?)",
+            [(symbol, ts) for symbol, _, ts in events if ts is not None],
+        )
         conn.executemany(
             "INSERT INTO alerts (id, symbol, ts, price, change_pct, rvol, rules_passed, headline, url) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",

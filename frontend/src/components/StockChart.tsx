@@ -1,9 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PriceBar } from "../api/types";
 
 type ChartRange = "1H" | "4H" | "Session";
 type ChartStyle = "line" | "candles";
+type ChartWindow = { size: number; end: number | null };
+
+const DEFAULT_WINDOW = 120;
+const MIN_WINDOW = 10;
 
 const WIDTH = 800;
 const HEIGHT = 300;
@@ -31,6 +35,11 @@ function rangeBars(bars: PriceBar[], range: ChartRange) {
   return bars.filter((bar) => new Date(bar.time).getTime() >= cutoff);
 }
 
+function chartPointerRatio(clientX: number, bounds: DOMRect) {
+  const svgX = (clientX - bounds.left) / bounds.width * WIDTH;
+  return Math.max(0, Math.min(1, (svgX - LEFT) / (WIDTH - LEFT - RIGHT)));
+}
+
 function sessionKind(value: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
     hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/New_York",
@@ -42,16 +51,68 @@ function sessionKind(value: string) {
   return "postmarket";
 }
 
-export function StockChart({ symbol, bars, loading, error }: {
+export function StockChart({ symbol, bars, loading, error, analysisMode = false, displayStyle, onDisplayStyleChange, onWheelZoom, onPanBars }: {
   symbol: string;
   bars: PriceBar[];
   loading: boolean;
   error: string | null;
+  analysisMode?: boolean;
+  displayStyle?: ChartStyle;
+  onDisplayStyleChange?: (style: ChartStyle) => void;
+  onWheelZoom?: (delta: number, anchor: number) => void;
+  onPanBars?: (bars: number) => void;
 }) {
   const [range, setRange] = useState<ChartRange>("Session");
-  const [chartStyle, setChartStyle] = useState<ChartStyle>(() => window.localStorage.getItem("stock-chart-style") === "candles" ? "candles" : "line");
+  const [savedChartStyle, setSavedChartStyle] = useState<ChartStyle>(() => window.localStorage.getItem("stock-chart-style") === "candles" ? "candles" : "line");
+  const chartStyle = displayStyle ?? savedChartStyle;
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const visible = useMemo(() => rangeBars(bars, range), [bars, range]);
+  const [pinnedTime, setPinnedTime] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef<{ pointerId: number; lastX: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+  const wheelPanRef = useRef(0);
+  const [expanded, setExpanded] = useState(false);
+  const [chartWindow, setChartWindow] = useState<ChartWindow>({ size: DEFAULT_WINDOW, end: null });
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const chartSvgRef = useRef<SVGSVGElement>(null);
+  const visible = useMemo(() => analysisMode ? bars : rangeBars(bars, range), [analysisMode, bars, range]);
+  const end = Math.min(chartWindow.end ?? visible.length, visible.length);
+  const count = Math.min(Math.max(1, Math.round(chartWindow.size)), visible.length);
+  const analysisBars = visible.slice(Math.max(0, end - count), end);
+
+  useEffect(() => {
+    if (analysisMode) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (expanded && !dialog.open) dialog.showModal();
+    if (!expanded && dialog.open) dialog.close();
+  }, [analysisMode, expanded, loading, error, visible.length]);
+
+  useEffect(() => {
+    setChartWindow({ size: DEFAULT_WINDOW, end: null });
+  }, [symbol]);
+
+  useEffect(() => {
+    if (!analysisMode) return;
+    const svg = chartSvgRef.current;
+    if (!svg) return;
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        wheelPanRef.current += event.deltaX;
+        const barsMoved = Math.trunc(wheelPanRef.current / 12);
+        if (barsMoved !== 0) {
+          onPanBars?.(barsMoved);
+          wheelPanRef.current -= barsMoved * 12;
+        }
+        return;
+      }
+      const unit = event.deltaMode === 1 ? 30 : event.deltaMode === 2 ? 100 : 1;
+      onWheelZoom?.(event.deltaY * unit, chartPointerRatio(event.clientX, svg.getBoundingClientRect()));
+    };
+    svg.addEventListener("wheel", handleWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", handleWheel);
+  }, [analysisMode, onPanBars, onWheelZoom, visible.length]);
 
   if (loading) return <div className="stock-chart-state">Loading Alpaca price history…</div>;
   if (error) return <div className="stock-chart-state error"><b>Chart unavailable</b><span>{error}</span></div>;
@@ -70,10 +131,12 @@ export function StockChart({ symbol, bars, loading, error }: {
   const x = (index: number) => LEFT + (visible.length === 1 ? plotWidth / 2 : index / (visible.length - 1) * plotWidth);
   const y = (price: number) => PRICE_BOTTOM - (price - low) / spread * (PRICE_BOTTOM - PRICE_TOP);
   const coordinates = visible.map((bar, index) => `${x(index)},${y(bar.close)}`).join(" ");
-  const selectedIndex = Math.min(hoverIndex ?? visible.length - 1, visible.length - 1);
+  const pinnedIndex = visible.findIndex((bar) => bar.time === pinnedTime);
+  const selectedIndex = Math.min(hoverIndex ?? (pinnedIndex >= 0 ? pinnedIndex : visible.length - 1), visible.length - 1);
   const selected = visible[selectedIndex];
   const first = visible[0];
   const change = first.close ? (selected.close / first.close - 1) * 100 : 0;
+  const candleChange = selected.open ? (selected.close / selected.open - 1) * 100 : 0;
   const gridPrices = [high, (high + low) / 2, low];
   const sessionSegments = visible.reduce<Array<{ kind: string; start: number; end: number }>>((segments, bar, index) => {
     const kind = sessionKind(bar.time);
@@ -83,39 +146,121 @@ export function StockChart({ symbol, bars, loading, error }: {
     return segments;
   }, []);
 
-  function selectNearest(clientX: number, bounds: DOMRect) {
-    const svgX = (clientX - bounds.left) / bounds.width * WIDTH;
-    const ratio = Math.max(0, Math.min(1, (svgX - LEFT) / plotWidth));
-    setHoverIndex(Math.round(ratio * (visible.length - 1)));
+  function nearestIndex(clientX: number, bounds: DOMRect) {
+    return Math.round(chartPointerRatio(clientX, bounds) * (visible.length - 1));
+  }
+
+  function handlePointerMove(event: React.PointerEvent<SVGSVGElement>) {
+    const drag = dragRef.current;
+    if (analysisMode && drag?.pointerId === event.pointerId) {
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const pixelsPerBar = bounds.width * plotWidth / WIDTH / Math.max(1, visible.length - 1);
+      const barsMoved = Math.trunc((event.clientX - drag.lastX) / pixelsPerBar);
+      if (barsMoved !== 0) {
+        onPanBars?.(-barsMoved);
+        drag.lastX += barsMoved * pixelsPerBar;
+        drag.moved = true;
+      }
+      setHoverIndex(null);
+      return;
+    }
+    setHoverIndex(nearestIndex(event.clientX, event.currentTarget.getBoundingClientRect()));
+  }
+
+  function finishDrag(event: React.PointerEvent<SVGSVGElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    suppressClickRef.current = drag.moved;
+    if (drag.moved) window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+    dragRef.current = null;
+    setDragging(false);
   }
 
   function chooseChartStyle(nextStyle: ChartStyle) {
-    setChartStyle(nextStyle);
+    setSavedChartStyle(nextStyle);
     window.localStorage.setItem("stock-chart-style", nextStyle);
+    onDisplayStyleChange?.(nextStyle);
   }
 
-  return <div className="stock-chart">
+  function openExpanded() {
+    chooseChartStyle("candles");
+    setChartWindow({ size: DEFAULT_WINDOW, end: null });
+    setExpanded(true);
+  }
+
+  function panBy(bars: number) {
+    setChartWindow((current) => {
+      const currentCount = Math.min(Math.max(1, Math.round(current.size)), visible.length);
+      const currentEnd = Math.min(current.end ?? visible.length, visible.length);
+      const next = Math.max(currentCount, Math.min(visible.length, currentEnd + bars));
+      return { ...current, end: next === visible.length ? null : next };
+    });
+  }
+
+  function zoomAt(delta: number, anchor: number) {
+    setChartWindow((current) => {
+      const total = visible.length;
+      if (total === 0) return current;
+      const currentSize = Math.min(current.size, total);
+      const currentCount = Math.min(Math.max(1, Math.round(currentSize)), total);
+      const nextSize = Math.max(Math.min(MIN_WINDOW, total), Math.min(total, currentSize * Math.exp(Math.max(-300, Math.min(300, delta)) * .003)));
+      const nextCount = Math.min(Math.max(1, Math.round(nextSize)), total);
+      if (nextCount === currentCount) return { ...current, size: nextSize };
+      const currentEnd = Math.min(current.end ?? total, total);
+      const anchorIndex = currentEnd - currentCount + anchor * (currentCount - 1);
+      const nextStart = Math.round(anchorIndex - anchor * (nextCount - 1));
+      const nextEnd = Math.max(nextCount, Math.min(total, nextStart + nextCount));
+      return { size: nextSize, end: nextEnd === total ? null : nextEnd };
+    });
+  }
+
+  return <>
+  <div className={`stock-chart ${analysisMode ? "analysis-chart" : ""}`}>
     <div className="stock-chart-toolbar">
       <div className="stock-chart-quote">
         <strong>{dollars(selected.close)}</strong>
         <span className={change >= 0 ? "positive" : "negative"}>{change >= 0 ? "+" : ""}{change.toFixed(2)}%</span>
-        <small>{chartTime(selected.time)} ET · O {dollars(selected.open)} · H {dollars(selected.high)} · L {dollars(selected.low)}</small>
+        <small>{chartTime(selected.time)} ET · O {dollars(selected.open)} · H {dollars(selected.high)} · L {dollars(selected.low)} · C {dollars(selected.close)} · Vol {selected.volume.toLocaleString("en-US")}</small>
       </div>
       <div className="chart-controls">
         <div className="chart-ranges" aria-label="Chart display">
           {(["line", "candles"] as ChartStyle[]).map((option) => <button type="button" key={option} className={chartStyle === option ? "active" : ""} aria-pressed={chartStyle === option} onClick={() => chooseChartStyle(option)}>{option === "line" ? "Line" : "Candles"}</button>)}
         </div>
-        <div className="chart-ranges" aria-label="Chart range">
-          {(["1H", "4H", "Session"] as ChartRange[]).map((option) => <button type="button" key={option} className={range === option ? "active" : ""} onClick={() => { setRange(option); setHoverIndex(null); }}>{option}</button>)}
-        </div>
+        {!analysisMode && <div className="chart-ranges" aria-label="Chart range">
+          {(["1H", "4H", "Session"] as ChartRange[]).map((option) => <button type="button" key={option} className={range === option ? "active" : ""} onClick={() => { setRange(option); setHoverIndex(null); setChartWindow((current) => ({ ...current, end: null })); }}>{option}</button>)}
+        </div>}
+        {!analysisMode && <button type="button" className="chart-expand-button" onClick={openExpanded}>↗ Expand</button>}
       </div>
     </div>
+    <div className={analysisMode ? "chart-inspect-scroll" : undefined}>
     <svg
+      ref={chartSvgRef}
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       role="img"
       aria-label={`${symbol} Alpaca ${chartStyle === "candles" ? "candlestick" : "line"} price and volume chart`}
-      onPointerMove={(event) => selectNearest(event.clientX, event.currentTarget.getBoundingClientRect())}
+      className={analysisMode ? `chart-inspect-canvas ${dragging ? "dragging" : ""}` : "chart-expand-canvas"}
+      tabIndex={analysisMode ? 0 : undefined}
+      onPointerDown={analysisMode ? (event) => {
+        if (event.pointerType !== "mouse" || event.button !== 0) return;
+        dragRef.current = { pointerId: event.pointerId, lastX: event.clientX, moved: false };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        setDragging(true);
+      } : undefined}
+      onPointerMove={handlePointerMove}
+      onPointerUp={analysisMode ? finishDrag : undefined}
+      onPointerCancel={analysisMode ? finishDrag : undefined}
       onPointerLeave={() => setHoverIndex(null)}
+      onClick={analysisMode ? (event) => {
+        if (suppressClickRef.current) return;
+        setPinnedTime(visible[nearestIndex(event.clientX, event.currentTarget.getBoundingClientRect())].time);
+      } : openExpanded}
+      onKeyDown={analysisMode ? (event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        setPinnedTime(visible[Math.max(0, Math.min(visible.length - 1, selectedIndex + (event.key === "ArrowRight" ? 1 : -1)))].time);
+        setHoverIndex(null);
+      } : undefined}
     >
       <defs>
         <linearGradient id={`stock-fill-${symbol}`} x1="0" x2="0" y1="0" y2="1">
@@ -155,6 +300,40 @@ export function StockChart({ symbol, bars, loading, error }: {
       <circle cx={x(selectedIndex)} cy={y(selected.close)} r="4" fill="#07100d" stroke="#6cf2a6" strokeWidth="2" vectorEffect="non-scaling-stroke" />
       <text className="stock-chart-time" x={x(selectedIndex)} y={HEIGHT - 4} textAnchor={selectedIndex < visible.length / 2 ? "start" : "end"}>{chartTime(selected.time)} ET</text>
     </svg>
+    </div>
+    {!analysisMode && <p className="chart-expand-hint">Click the chart to inspect individual candles ↗</p>}
+    {analysisMode && <div className="chart-candle-details">
+      <div><small>Selected candle</small><strong>{chartTime(selected.time)} ET</strong></div>
+      <div><small>Open</small><strong>{dollars(selected.open)}</strong></div>
+      <div><small>High</small><strong>{dollars(selected.high)}</strong></div>
+      <div><small>Low</small><strong>{dollars(selected.low)}</strong></div>
+      <div><small>Close</small><strong>{dollars(selected.close)}</strong></div>
+      <div><small>Volume</small><strong>{selected.volume.toLocaleString("en-US")}</strong></div>
+      <div><small>Candle move</small><strong className={candleChange >= 0 ? "positive" : "negative"}>{candleChange >= 0 ? "+" : ""}{candleChange.toFixed(2)}%</strong></div>
+    </div>}
     <div className="stock-chart-legend"><span><i className="premarket-key" />Pre-market</span><span><i className="regular-key" />Regular market</span><span><i className="postmarket-key" />Post-market to 4:15 PM</span><span>Alpaca SIP · 1-minute bars</span></div>
-  </div>;
+  </div>
+  {!analysisMode && <dialog ref={dialogRef} className="chart-dialog" aria-label={`${symbol} expanded market chart`} onClose={() => setExpanded(false)} onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
+    {expanded && <div className="chart-dialog-content">
+      <header className="chart-dialog-header">
+        <div><p className="eyebrow">Market chart · detailed view</p><h2>{symbol} <span>→ {symbol}x-demo</span></h2><p>Scroll to zoom, drag to move through candles, or click one to pin its values. Swipe sideways on touch screens.</p></div>
+        <button type="button" className="chart-close-button" onClick={() => dialogRef.current?.close()} aria-label="Close expanded chart">×</button>
+      </header>
+      <div className="chart-window-controls" aria-label="Chart zoom and navigation">
+        <div className="chart-ranges" aria-label="Expanded chart range">
+          {(["1H", "4H", "Session"] as ChartRange[]).map((option) => <button type="button" key={option} className={range === option ? "active" : ""} aria-pressed={range === option} onClick={() => { setRange(option); setChartWindow((current) => ({ ...current, end: null })); }}>{option}</button>)}
+        </div>
+        <span className="chart-window-label">{analysisBars.length > 0 ? `${chartTime(analysisBars[0].time)}–${chartTime(analysisBars[analysisBars.length - 1].time)} ET · ${analysisBars.length} candles` : "Waiting for bars"}</span>
+        <div className="chart-window-buttons">
+          <button type="button" onClick={() => panBy(-Math.max(1, Math.round(count / 2)))} disabled={end <= count} aria-label="Show earlier candles">← Earlier</button>
+          <button type="button" onClick={() => panBy(Math.max(1, Math.round(count / 2)))} disabled={end >= visible.length} aria-label="Show later candles">Later →</button>
+          <button type="button" onClick={() => zoomAt(-240, .5)} disabled={count <= Math.min(MIN_WINDOW, visible.length)} aria-label="Zoom in on candles">+ Zoom in</button>
+          <button type="button" onClick={() => zoomAt(240, .5)} disabled={count >= visible.length} aria-label="Zoom out to more candles">− Zoom out</button>
+          <button type="button" onClick={() => setChartWindow({ size: DEFAULT_WINDOW, end: null })}>Latest</button>
+        </div>
+      </div>
+      <StockChart key={`${symbol}-${range}`} symbol={symbol} bars={analysisBars} loading={loading} error={error} analysisMode displayStyle={chartStyle} onDisplayStyleChange={chooseChartStyle} onWheelZoom={zoomAt} onPanBars={panBy} />
+    </div>}
+  </dialog>}
+  </>;
 }

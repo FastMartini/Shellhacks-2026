@@ -3,6 +3,7 @@ export interface ReplayState { mode: string; sim_time: string; speed: number; ru
 export interface PriceQuote { symbol: string; price: number; prev_close: number; change_pct: number; sim_time: string }
 export interface PriceBar { time: string; open: number; high: number; low: number; close: number; volume: number }
 export interface ScannerRow { symbol: string; token_symbol: string; price: number; change_pct: number; rvol: number; momentum_pass: boolean; rvol_pass: boolean; signals_passed: number; as_of: string; news_released: boolean; qualified_at: string | null; news_checked_at: string; news_is_new: boolean; news_published_at: string | null; headline: string | null; headline_url: string | null }
+export interface MarketSnapshot { replay: ReplayState; scanner: ScannerRow[]; prices: PriceQuote[] }
 export interface FaucetResponse { signature: string; usd_amount: number }
 export interface TradeQuote { quote_id: string; symbol: string; side: "buy" | "sell"; price: number; qty: number; usd_amount: number; sim_time: string; expires_in_s: number; tx_base64: string }
 export interface TransactionRow { id: number; sim_time: string; symbol: string; side: "buy" | "sell"; qty: number; price: number; usd_amount: number; cash_before: number; cash_after: number; realized_pl: number | null; realized_pl_pct: number | null; outcome: "win" | "loss" | null; opened_at: string | null; held_min: number | null; signature: string; explorer_url: string | null }

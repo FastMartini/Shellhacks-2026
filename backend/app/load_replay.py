@@ -7,7 +7,7 @@ Downloads Friday's 1-minute SIP bars (4:00 AM–8:00 PM ET) into `bars`, the 20 
 anything is written, then written in one transaction that replaces the old rows for these symbols, so a
 failed run changes nothing and a rerun is safe. The API never calls this; it only reads what it wrote.
 
-Run it before starting uvicorn, or restart uvicorn afterwards: the scanner computes alerts at startup.
+Run it before starting uvicorn, or restart uvicorn afterwards: the scanner computes news triggers and alerts at startup.
 Needs ALPACA_API_KEY, ALPACA_API_SECRET and FINNHUB_API_KEY in backend/.env (see .env.example).
 """
 

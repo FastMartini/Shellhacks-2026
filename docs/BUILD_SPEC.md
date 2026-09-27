@@ -52,6 +52,7 @@ One FastAPI backend and one React app, running on one laptop, talking to Solana 
     - `bars(symbol, ts, open, high, low, close, volume)`: 1-minute, Friday 4:00 AM–8:00 PM ET
     - `daily_bars(symbol, date, close, volume)`: 20 prior sessions
     - `news(symbol, published_at, headline, url)`
+    - `news_triggers(symbol, ts)`: first minute when the momentum signal passes
     - `alerts(id, symbol, ts, price, change_pct, rvol, rules_passed, headline, url)`
     - `ledger(id, wallet, ts, kind, symbol, qty_units, price, usd_units, signature)`: `kind` is `deposit`, `buy` or `sell`; amounts in integer base units (1 token = 1,000,000 units)
 
@@ -71,6 +72,7 @@ Agree on these shapes in the first hour. Every endpoint ships first as a stub re
 | Method | Path | Returns |
 | --- | --- | --- |
 | GET | `/replay/state` | `{mode, sim_time, speed, running}` |
+| GET | `/market/snapshot` | `{replay, scanner, prices}` captured at one replay time for the frontend |
 | POST | `/replay/control` | body `{action: "start" \| "pause" \| "seek", speed?, to?}` → state |
 | POST | `/replay/next-alert` | seeks to the next alert's time and pauses → state |
 | GET | `/prices` | `[{symbol, price, prev_close, change_pct, sim_time}]` for all 19 |
@@ -98,10 +100,10 @@ The clock starts **paused at 7:00 AM** and stops itself at 4:15 PM. Alpaca bars 
 
 - The scanner runs over the whole replay day at startup, stores every alert in SQLite, and `/alerts` reveals only the ones the clock has passed.
 - `/scanner` always returns every monitored stock at the replay clock's current minute. Values change only when the minute changes, even though the UI polls more frequently.
-- An alert requires the two market signals: price at least 3% above the previous close and RVOL at least 2× its session-adjusted average. Company news is context, not a third signal; after both signals first pass, its release state persists even if live momentum or RVOL later falls.
+- An alert requires the two market signals: price at least 3% above the previous close and RVOL at least 2× its session-adjusted average. Company news is context, not a third signal; after momentum first passes, its release state persists even if live momentum or RVOL later falls.
 - Relevant company news is evaluated on ten-minute replay boundaries. A different later article appears at the next boundary and is marked as new in the momentum monitor.
 - **At most one alert per stock per day.**
-- **No look-ahead:** the news rule and the headline only use news with `published_at` at or before the alert time.
+- **No look-ahead:** displayed news must be published by the current news-check boundary; alert headlines must be published by the alert time.
 
 ### 3. Vault (Matthew)
 
@@ -171,11 +173,11 @@ The scanner uses real Alpaca bars from 4:00 AM through 4:15 PM ET for complete s
 | --- | --- | --- |
 | Relative volume | ≥ 5 | ≥ 2: session volume ÷ (20-day average daily volume × share of a 390-minute baseline elapsed); volume resets at 9:30 AM and 4:00 PM so extended-hours volume does not inflate the next session |
 | Price move | Up ≥ 10% | Up ≥ 3% from the previous close |
-| News catalyst | Within 24 h | Not an alert gate. After both market signals pass, reveal filtered Finnhub company news published in the prior 24 hours; recheck every 10 replay minutes and flag a different article as new |
+| News catalyst | Within 24 h | Not an alert gate. After momentum passes, reveal filtered Finnhub company news published in the prior 24 hours; recheck every 10 replay minutes and flag a different article as new |
 | Price range | $2–$20 | Dropped (tokens are fractional) |
 | Float | < 20M shares | Dropped. Optional replacement: breaks above the pre-market high |
 
-Both market signals must pass for an alert. Long only. One alert per stock per day. Once released, a stock's news stays released for the rest of the forward replay even when its live signal count falls below 2/2. If no qualifying company article exists, the signal remains valid and the UI shows that news is pending instead of inventing a link.
+Both market signals must pass for an alert. Long only. One alert per stock per day. Once momentum first passes, a stock's news stays released for the rest of the forward replay even when its live signal count falls to 0/2. RVOL alone does not release news. If no qualifying company article exists, the UI shows that news is pending instead of inventing a link.
 
 **Stock list (19, all on xStocks):** AAPL, AMD, AMZN, COIN, GOOGL, HOOD, META, MSFT, MSTR, NFLX, NVDA, PLTR, QQQ, SPY, TSLA, plus Friday's movers AKAM, DDOG, INTC, ZS. Mock mints on devnet use the same tickers with a `-demo` suffix (e.g. `AKAMx-demo`). There are 20 total mints because `dUSD` is the twentieth; it is cash, not a stock, and is not scanned.
 
@@ -194,7 +196,7 @@ Both market signals must pass for an alert. Long only. One alert per stock per d
 
 **Scanner chart:** selecting an alert or tracked symbol opens its underlying stock's Alpaca SIP price/volume chart and labels the corresponding `x-demo` token. The chart supports line and candlestick preferences plus 1-hour, 4-hour and full-session views, never shows bars ahead of the replay clock, and distinguishes pre-market, regular and post-market sessions.
 
-**Replay controls:** starts paused at 7:00 AM; start/pause; speed picker (1×, 10×, 30×, 60×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 7:00 AM while the wallet has no deposits; the clock stops at 4:15 PM.
+**Replay controls:** starts paused at 7:00 AM; start/pause; speed picker (1×, 10×, 30×, 60×, 120×, 300×, 600×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 7:00 AM while the wallet has no deposits; the clock stops at 4:15 PM.
 
 ## Vault
 

@@ -28,8 +28,8 @@ The must-have loop works end to end on devnet with Phantom (connect → demo dol
 | Trade log + stats (`/transactions`, `/portfolio`) | Khalil | Working, computed from the ledger |
 | Replay data loader (Alpaca bars, Finnhub news) | Matthew | Working; loads 19 symbols atomically into SQLite |
 | Vault (`/faucet`, `/trade/quote`, `/trade/submit`, `/demo/reset`) | Matthew | Working on devnet. The faucet funds each wallet once; a retried submit never trades twice |
-| Scanner + `/scanner` + `/alerts` | Diego | Monitors every supported stock each replay minute from the 7:00 AM replay start through 4:15 PM ET; news is released permanently for the replay after momentum and RVOL first pass. The real data produces AKAM and DDOG at 9:30 AM and MSFT at 9:41 AM |
-| Frontend | Diego, Justin | Working: momentum monitor (all-stock signals, ten-minute news updates, line/candlestick Alpaca charts, replay controls, trade ticket through Phantom) and dashboard (account value, stats, account-value chart, holdings, trade log). Average win vs. average loss isn't shown yet |
+| Scanner + `/scanner` + `/alerts` | Diego | Monitors every supported stock each replay minute from the 7:00 AM replay start through 4:15 PM ET; news is released for the rest of the replay after momentum first passes. Alerts still require both momentum and RVOL. The real data produces AKAM and DDOG at 9:30 AM and MSFT at 9:41 AM |
+| Frontend | Diego, Justin | Working: momentum monitor (all-stock signals, ten-minute news updates, line/candlestick Alpaca charts, replay controls, trade ticket through Phantom) and dashboard (account value, average win/loss, account-value chart, holdings, trade log) |
 | Mints, vault keypair, `mints.json` | Justin | Done on devnet with `scripts/setup_devnet.py` (#9) |
 | Demo seed (`seed_demo.py`) | Matthew | Working; pre-runs the non-live demo trades with the demo wallet |
 
