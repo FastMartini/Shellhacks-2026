@@ -76,6 +76,7 @@ Agree on these shapes in the first hour. Every endpoint ships first as a stub re
 | GET | `/prices` | `[{symbol, price, prev_close, change_pct, sim_time}]` for all 19 |
 | GET | `/prices/{symbol}` | one of the above |
 | GET | `/prices/{symbol}/history` | Alpaca minute bars reached by the replay clock: `[{time, open, high, low, close, volume}]` |
+| GET | `/scanner` | all 19 stock rows for the current replay minute: price change, RVOL, two signal states, and news unlocked only at 2/2 |
 
 Python code inside the backend calls these instead of HTTP:
 
@@ -91,11 +92,13 @@ The clock starts **paused at 4:00 AM**, when the pre-market session begins, and 
 ```json
 {"id": "AKAM-0931", "symbol": "AKAM", "time": "2026-09-25T09:31:00-04:00",
  "price": 120.00, "change_pct": 8.7, "rvol": 6.8,
- "rules_passed": ["rvol", "change", "news"],
+ "rules_passed": ["change", "rvol"],
  "headline": "<a headline published before 9:31>", "headline_url": "https://..."}
 ```
 
 - The scanner runs over the whole replay day at startup, stores every alert in SQLite, and `/alerts` reveals only the ones the clock has passed.
+- `/scanner` always returns every monitored stock at the replay clock's current minute. Values change only when the minute changes, even though the UI polls more frequently.
+- An alert requires the two market signals: price at least 3% above the previous close and RVOL at least 2× its session-adjusted average. Company news is context, not a third signal; its link stays hidden until both signals pass.
 - **At most one alert per stock per day.**
 - **No look-ahead:** the news rule and the headline only use news with `published_at` at or before the alert time.
 
@@ -167,13 +170,13 @@ The scanner evaluates real Alpaca bars from 4:00 AM through 4:15 PM ET, covering
 | --- | --- | --- |
 | Relative volume | ≥ 5 | ≥ 2: session volume ÷ (20-day average daily volume × share of a 390-minute baseline elapsed); volume resets at 9:30 AM and 4:00 PM so extended-hours volume does not inflate the next session |
 | Price move | Up ≥ 10% | Up ≥ 3% from the previous close |
-| News catalyst | Within 24 h | Finnhub company news published in the 24 h **before** the alert time, same headline filter as the reference |
+| News catalyst | Within 24 h | Not an alert gate. After both market signals pass, reveal filtered Finnhub company news published in the prior 24 hours |
 | Price range | $2–$20 | Dropped (tokens are fractional) |
 | Float | < 20M shares | Dropped. Optional replacement: breaks above the pre-market high |
 
-All rules must pass for an alert. Long only. One alert per stock per day.
+Both market signals must pass for an alert. Long only. One alert per stock per day. If no qualifying company article exists, the signal remains valid and the UI shows that news is pending instead of inventing a link.
 
-**Stock list (19, all on xStocks):** AAPL, AMD, AMZN, COIN, GOOGL, HOOD, META, MSFT, MSTR, NFLX, NVDA, PLTR, QQQ, SPY, TSLA, plus Friday's movers AKAM, DDOG, INTC, ZS. Mock mints on devnet use the same tickers with a `-demo` suffix (e.g. `AKAMx-demo`).
+**Stock list (19, all on xStocks):** AAPL, AMD, AMZN, COIN, GOOGL, HOOD, META, MSFT, MSTR, NFLX, NVDA, PLTR, QQQ, SPY, TSLA, plus Friday's movers AKAM, DDOG, INTC, ZS. Mock mints on devnet use the same tickers with a `-demo` suffix (e.g. `AKAMx-demo`). There are 20 total mints because `dUSD` is the twentieth; it is cash, not a stock, and is not scanned.
 
 **Friday's story.** Built from daily data and news timestamps, then checked on the minute bars: AKAM gapped up and faded.
 

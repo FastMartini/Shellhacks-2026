@@ -74,6 +74,56 @@ def _latest_catalyst(rows: list[sqlite3.Row], symbol: str, at: datetime) -> sqli
     return (named or eligible)[-1]
 
 
+def _session_start(at: datetime) -> datetime:
+    if at < config.MARKET_OPEN:
+        return config.PREMARKET_OPEN
+    if at < config.MARKET_CLOSE:
+        return config.MARKET_OPEN
+    return config.MARKET_CLOSE
+
+
+def _signal_metrics(conn: sqlite3.Connection, symbol: str, at: datetime) -> dict:
+    """Current minute's two scanner signals for one stock."""
+    at = at.astimezone(config.ET).replace(second=0, microsecond=0)
+    at = max(config.PREMARKET_OPEN, min(config.SCANNER_CLOSE, at))
+    previous_close = prices.prev_close(symbol, conn)
+    price = prices.price_at(symbol, at, conn)
+    average_daily_volume = _daily_average_volume(conn, symbol)
+    session_start = _session_start(at)
+    elapsed_minutes = min(390, max(1, int((at - session_start).total_seconds() // 60) + 1))
+    expected_volume = (average_daily_volume or 0) * elapsed_minutes / 390
+    relative_volume = prices.volume_since(symbol, session_start, at, conn) / expected_volume if expected_volume else 0.0
+    change_pct = (price / previous_close - 1) * 100 if previous_close else 0.0
+    return {
+        "price": round(price, 2),
+        "change_pct": round(change_pct, 2),
+        "rvol": round(relative_volume, 2),
+        "momentum_pass": change_pct >= config.MIN_CHANGE_PCT,
+        "rvol_pass": relative_volume >= config.MIN_RVOL,
+        "as_of": config.iso(at),
+    }
+
+
+def snapshot(at: datetime, conn: sqlite3.Connection | None = None, symbols: list[str] | None = None) -> list[dict]:
+    """All monitored stocks at the current replay minute; news unlocks after both signals pass."""
+    conn = conn or db.get()
+    symbols = symbols or config.SYMBOLS
+    rows = []
+    for symbol in symbols:
+        metrics = _signal_metrics(conn, symbol, at)
+        both_pass = metrics["momentum_pass"] and metrics["rvol_pass"]
+        catalyst = _latest_catalyst(_quality_news(conn, symbol), symbol, datetime.fromisoformat(metrics["as_of"])) if both_pass else None
+        rows.append({
+            "symbol": symbol,
+            "token_symbol": f"{symbol}x-demo",
+            **metrics,
+            "signals_passed": int(metrics["momentum_pass"]) + int(metrics["rvol_pass"]),
+            "headline": catalyst["headline"] if catalyst else None,
+            "headline_url": catalyst["url"] if catalyst else None,
+        })
+    return rows
+
+
 def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
     previous_close = prices.prev_close(symbol, conn)
     average_daily_volume = _daily_average_volume(conn, symbol)
@@ -81,8 +131,6 @@ def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
         return None
 
     news_rows = _quality_news(conn, symbol)
-    if not news_rows:
-        return None
 
     cumulative_volume = 0
     volume_window_start: datetime | None = None
@@ -92,12 +140,7 @@ def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
     )
     for bar in bars:
         at = datetime.fromisoformat(bar["ts"])
-        if at < config.MARKET_OPEN:
-            session_start = config.PREMARKET_OPEN
-        elif at < config.MARKET_CLOSE:
-            session_start = config.MARKET_OPEN
-        else:
-            session_start = config.MARKET_CLOSE
+        session_start = _session_start(at)
         if session_start != volume_window_start:
             cumulative_volume = 0
             volume_window_start = session_start
@@ -113,8 +156,6 @@ def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
         if change_pct < config.MIN_CHANGE_PCT or relative_volume < config.MIN_RVOL:
             continue
         catalyst = _latest_catalyst(news_rows, symbol, at)
-        if catalyst is None:
-            continue
         return {
             "id": f"{symbol}-{at:%H%M}",
             "symbol": symbol,
@@ -122,9 +163,9 @@ def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
             "price": round(bar["close"], 2),
             "change_pct": round(change_pct, 2),
             "rvol": round(relative_volume, 2),
-            "rules_passed": ["rvol", "change", "news"],
-            "headline": catalyst["headline"],
-            "headline_url": catalyst["url"],
+            "rules_passed": ["change", "rvol"],
+            "headline": catalyst["headline"] if catalyst else None,
+            "headline_url": catalyst["url"] if catalyst else None,
         }
     return None
 

@@ -1,11 +1,11 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Transaction } from "@solana/web3.js";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ApiRequestError, apiRequest } from "./api/client";
 import { submitSignedTrade } from "./api/trade";
-import type { Alert, FaucetResponse, Portfolio, PriceBar, PriceQuote, ReplayState, TradeQuote, TransactionRow } from "./api/types";
+import type { FaucetResponse, Portfolio, PriceBar, PriceQuote, ReplayState, ScannerRow, TradeQuote, TransactionRow } from "./api/types";
 import { EquityChart } from "./components/EquityChart";
 import { StatCard } from "./components/StatCard";
 import { StockChart } from "./components/StockChart";
@@ -61,7 +61,7 @@ export default function App() {
   const wallet = publicKey?.toBase58();
   const [view, setView] = useState<"dashboard" | "scanner">(() => window.location.hash === "#scanner" ? "scanner" : "dashboard");
   const [replay, setReplay] = useState<ReplayState | null>(null);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [scannerRows, setScannerRows] = useState<ScannerRow[]>([]);
   const [prices, setPrices] = useState<PriceQuote[]>([]);
   const [chart, setChart] = useState<{ symbol: string; bars: PriceBar[] } | null>(null);
   const [chartError, setChartError] = useState<string | null>(null);
@@ -81,12 +81,12 @@ export default function App() {
   const loadMarket = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     try {
-      const [nextReplay, nextAlerts, nextPrices] = await Promise.all([
+      const [nextReplay, nextScannerRows, nextPrices] = await Promise.all([
         apiRequest<ReplayState>("/replay/state"),
-        apiRequest<Alert[]>("/alerts"),
+        apiRequest<ScannerRow[]>("/scanner"),
         apiRequest<PriceQuote[]>("/prices"),
       ]);
-      setReplay(nextReplay); setAlerts(nextAlerts); setPrices(nextPrices); setError(null);
+      setReplay(nextReplay); setScannerRows(nextScannerRows); setPrices(nextPrices); setError(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "The API is unavailable.");
     } finally {
@@ -136,13 +136,11 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [loadPortfolio, wallet]);
 
-  const selectedAlert = alerts.find((alert) => alert.symbol === selectedSymbol);
   const selectedPrice = prices.find((price) => price.symbol === selectedSymbol);
   const selectedHolding = portfolio.holdings.find((holding) => holding.symbol === selectedSymbol);
   const parsedAmount = Number(amount);
   const estimatedShares = side === "buy" && selectedPrice && parsedAmount > 0 ? parsedAmount / selectedPrice.price : null;
   const estimatedValue = side === "sell" && selectedPrice && parsedAmount > 0 ? parsedAmount * selectedPrice.price : null;
-  const visibleAlerts = useMemo(() => [...alerts].sort((a, b) => b.time.localeCompare(a.time)), [alerts]);
   const portfolioReady = wallet != null && portfolioWallet === wallet;
   const hasValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
   const hasTradeBalance = side === "buy" ? portfolio.cash >= parsedAmount : (selectedHolding?.qty ?? 0) >= parsedAmount;
@@ -278,16 +276,21 @@ export default function App() {
       {view === "scanner" ? <>
         <section className="scanner-overview">
           <div className="panel alerts-panel">
-            <div className="panel-heading"><div><p className="eyebrow">Alpaca SIP scanner · 4:00 AM–4:15 PM ET</p><h2>Momentum alerts</h2></div><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next →</button></div>
+            <div className="panel-heading scanner-heading"><div><p className="eyebrow">Alpaca SIP scanner · 4:00 AM–4:15 PM ET</p><h2>Minute-by-minute monitor</h2><div className="signal-rules"><span>Momentum ≥ +3%</span><span>Relative volume ≥ 2×</span></div></div><div className="scanner-heading-actions"><span>{scannerRows.length} stocks · {marketTime(scannerRows[0]?.as_of)} ET</span><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next signal →</button></div></div>
             {notice && <p className="notice">{notice}</p>}
-            <div className="alert-list">
-              {loading ? <div className="empty-state">Loading scanner…</div> : visibleAlerts.length === 0 ? <div className="empty-state"><b>No alerts revealed yet</b><span>Start the pre-market replay or jump directly to the first signal.</span></div> : visibleAlerts.map((alert) => (
-                <button className={`alert-row ${selectedSymbol === alert.symbol ? "selected" : ""}`} key={alert.id} onClick={() => setSelectedSymbol(alert.symbol)}>
-                  <span className="ticker">{alert.symbol}<small>{alert.symbol}x-demo</small></span><span><b>{signed(alert.change_pct, "%")}</b><small>Price move</small></span><span><b>{alert.rvol.toFixed(1)}×</b><small>Rel. volume</small></span><time>{marketTime(alert.time)}</time>
-                </button>
+            <div className="scanner-list" aria-label="Monitored stock signals">
+              {loading ? <div className="empty-state">Loading scanner…</div> : scannerRows.map((row) => (
+                <div className={`scanner-row ${selectedSymbol === row.symbol ? "selected" : ""} ${row.signals_passed === 2 ? "qualified" : ""}`} key={row.symbol}>
+                  <button className="scanner-select" onClick={() => setSelectedSymbol(row.symbol)} aria-label={`Open ${row.symbol} chart`}>
+                    <span className="ticker">{row.symbol}<small>{row.token_symbol}</small></span>
+                    <span className={row.momentum_pass ? "signal-value pass" : "signal-value"}><b>{signed(row.change_pct, "%")}</b><small>Momentum</small></span>
+                    <span className={row.rvol_pass ? "signal-value pass" : "signal-value"}><b>{row.rvol.toFixed(1)}×</b><small>Rel. volume</small></span>
+                    <span className={`signal-count count-${row.signals_passed}`}><b>{row.signals_passed}/2</b><small>{row.signals_passed === 2 ? "Signal" : "Watching"}</small></span>
+                  </button>
+                  <span className="scanner-news">{row.signals_passed === 2 ? (row.headline_url ? <a href={row.headline_url} target="_blank" rel="noreferrer" title={row.headline ?? "Company news"}>News ↗</a> : <small>News pending</small>) : <small>Locked</small>}</span>
+                </div>
               ))}
             </div>
-            {selectedAlert?.headline && <a className="headline" href={selectedAlert.headline_url ?? "#"} target="_blank" rel="noreferrer"><span>Qualifying catalyst</span>{selectedAlert.headline}<b>↗</b></a>}
           </div>
           <div className="replay-card">
             <div><span className={replay?.running ? "live-dot running" : "live-dot"} /> {replay?.running ? "Replay running" : "Replay paused"}<span className="session-badge">{marketSession(replay?.sim_time)}</span></div>

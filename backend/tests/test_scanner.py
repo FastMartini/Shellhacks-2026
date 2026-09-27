@@ -41,12 +41,13 @@ def test_large_cap_rules_drop_price_and_float_filters():
     assert alert["symbol"] == "MSFT"
     assert alert["change_pct"] == 4.0
     assert alert["rvol"] == 2.5
-    assert alert["rules_passed"] == ["rvol", "change", "news"]
+    assert alert["rules_passed"] == ["change", "rvol"]
 
 
-def test_all_rules_must_pass():
+def test_both_market_signals_must_pass_and_news_is_optional():
     conn = scanner_db()
-    assert scanner.rebuild_alerts(conn, ["MSFT"]) == 0  # no news
+    assert scanner.rebuild_alerts(conn, ["MSFT"]) == 1
+    assert scanner.visible_alerts(et(9, 31), conn)[0]["headline"] is None
     add_news(conn, et(9, 20))
     conn.execute("UPDATE bars SET volume = 1")
     assert scanner.rebuild_alerts(conn, ["MSFT"]) == 0  # low relative volume
@@ -85,12 +86,29 @@ def test_scans_through_415_postmarket():
     assert scanner.visible_alerts(config.SCANNER_CLOSE, conn)[0]["time"] == config.iso(et(16, 15))
 
 
-def test_generic_future_and_old_news_do_not_qualify():
+def test_generic_future_and_old_news_are_not_released():
     conn = scanner_db()
     add_news(conn, et(9, 20), "Friday pre-market movers: top gainers and losers")
     add_news(conn, et(9, 32), "Microsoft announces a future catalyst")
     add_news(conn, et(9, 31) - timedelta(hours=25), "Old Microsoft announcement")
-    assert scanner.rebuild_alerts(conn, ["MSFT"]) == 0
+    assert scanner.rebuild_alerts(conn, ["MSFT"]) == 1
+    assert scanner.visible_alerts(et(9, 31), conn)[0]["headline"] is None
+
+
+def test_snapshot_monitors_every_symbol_and_unlocks_news_after_two_signals():
+    conn = scanner_db()
+    add_news(conn, et(9, 20))
+
+    before = scanner.snapshot(et(9, 30), conn, ["MSFT"])[0]
+    assert before["signals_passed"] == 1
+    assert before["momentum_pass"] is False and before["rvol_pass"] is True
+    assert before["headline"] is None and before["headline_url"] is None
+
+    qualified = scanner.snapshot(et(9, 31), conn, ["MSFT"])[0]
+    assert qualified["signals_passed"] == 2
+    assert qualified["headline"].startswith("Microsoft")
+    assert qualified["headline_url"] == "https://example.com/news"
+    assert qualified["as_of"].endswith("09:31:00-04:00")
 
 
 def test_precomputes_one_alert_but_hides_it_until_replay_reaches_it():
@@ -123,6 +141,12 @@ def test_alerts_http_contract_and_replay_visibility():
     try:
         with TestClient(app) as api:
             assert api.get("/alerts").json() == []
+            monitored = api.get("/scanner").json()
+            assert len(monitored) == len(config.SYMBOLS)
+            assert set(monitored[0]) == {
+                "symbol", "token_symbol", "price", "change_pct", "rvol", "momentum_pass",
+                "rvol_pass", "signals_passed", "as_of", "headline", "headline_url",
+            }
             state = api.post("/replay/next-alert").json()
             assert state["sim_time"] == config.iso(et(9, 31))
             alert = api.get("/alerts").json()[0]

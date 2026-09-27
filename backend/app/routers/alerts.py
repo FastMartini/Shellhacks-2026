@@ -11,3 +11,8 @@ router = APIRouter()
 @router.get("/alerts")
 def list_alerts():
     return scanner.visible_alerts(clock.sim_time)
+
+
+@router.get("/scanner")
+def scanner_state():
+    return scanner.snapshot(clock.sim_time)

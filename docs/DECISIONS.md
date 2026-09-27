@@ -13,7 +13,7 @@ Settled with the team in a question-by-question review (Sept 25–26). Later dec
 | 3 | Issuer / stock list | **xStocks**, 19 hand-picked names | Ondo doesn't list AKAM, DDOG or ZS, which were Friday's movers |
 | 4 | Audience | International users locked out of US markets. Demo persona: **Sofía in Argentina** (hyperinflation). Ukraine and Nigeria mentioned in the pitch | **China and Cuba dropped**: Cuba is under comprehensive US (OFAC) sanctions; Ondo excludes China incl. Hong Kong, Cuba, and occupied Ukrainian regions |
 | 5 | User | Both first-time investors and active traders; demo shows Sofía growing from saver to trader | No separate "saver" screen; the pesos → dollars value is told in the pitch |
-| 6 | Scanner rules | Large-cap version: RVOL ≥ 2, up ≥ 3%, news catalyst; price and float filters dropped | Large caps rarely hit RVOL 5 or +10% |
+| 6 | Scanner rules | Large-cap version: RVOL ≥ 2 and up ≥ 3%; unlock company news after both pass. Price and float filters dropped | Large caps rarely hit RVOL 5 or +10%. News explains a signal but does not prevent the market-data signal from firing |
 | 7 | Backtesting | **Dropped.** Replaced by per-trade and portfolio stats | Simpler; the trade log validates the strategy |
 | 8 | Stats | Total P/L ($, %), average win vs. average loss, number of trades, account-value chart (Robinhood-style) | Average cost method, so buys and sells are logged separately |
 | 9 | Trades | **Long only**; each buy and sell is its own transaction; P/L via average cost | Short selling would need collateral tracking |
