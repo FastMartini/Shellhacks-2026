@@ -50,8 +50,8 @@ main.landing-page { position: relative; padding-bottom: 0; }
 .hero-secondary { color: #f2f5f3; border: 1px solid #ffffff24; background: #ffffff08; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .hero-secondary:hover { border-color: #6cf2a680; }
 .momentum-canvas { position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; }
-.scene-fallback { display: grid; height: 100%; place-content: center; }
-.scene-fallback span { display: grid; width: 120px; height: 120px; place-content: center; color: #05110b; border-radius: 36px; background: #a4ffd0; box-shadow: 0 0 80px #6cf2a666; font-size: 76px; }
+.scene-fallback { position: relative; height: 100%; }
+.scene-fallback span { position: absolute; top: 42%; left: 72%; display: grid; width: 120px; height: 120px; place-content: center; color: #05110b; border-radius: 36px; background: #a4ffd0; box-shadow: 0 0 80px #6cf2a666; font-size: 76px; transform: translate(-50%, -50%); }
 .hero-loading { display: grid; min-height: 100vh; min-height: 100svh; place-content: center; }
 .hero-loading span { color: #6cf2a6; font-size: 52px; animation: hero-loading 1.1s ease-in-out infinite alternate; }
 @keyframes hero-loading { to { opacity: .4; transform: translateY(-10px); } }
@@ -183,6 +183,7 @@ input:focus { border-color: #6cf2a6; }
   .landing-page .network-pill { display: none; }
   .landing-hero { align-items: flex-start; min-height: max(100vh, 860px); min-height: max(100svh, 860px); padding-top: 148px; }
   .hero-copy { width: min(610px, 100%); }
+  .scene-fallback span { top: auto; right: 24px; bottom: 48px; left: auto; width: 96px; height: 96px; border-radius: 28px; font-size: 60px; transform: none; }
   .hero-scene-background::after { background: linear-gradient(180deg, #050807f7 0%, #050807c4 42%, #05080726 72%, #05080759 100%); }
 }
 
