@@ -276,7 +276,7 @@ export default function App() {
       {view === "scanner" ? <>
         <section className="scanner-overview">
           <div className="panel alerts-panel">
-            <div className="panel-heading scanner-heading"><div><p className="eyebrow">Alpaca SIP scanner · 7:00 AM–4:15 PM ET</p><h2>Minute-by-minute monitor</h2><div className="signal-rules"><span>Momentum ≥ +3%</span><span>Relative volume ≥ 2×</span></div></div><div className="scanner-heading-actions"><span>{scannerRows.length} stocks · {marketTime(scannerRows[0]?.as_of)} ET</span><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next signal →</button></div></div>
+            <div className="panel-heading scanner-heading"><div><p className="eyebrow">Alpaca SIP scanner · 7:00 AM–4:15 PM ET</p><h2>Momentum monitor</h2><div className="signal-rules"><span>Momentum ≥ +3%</span><span>Relative volume ≥ 2×</span><span>News checked every 10 min</span></div></div><div className="scanner-heading-actions"><span>{scannerRows.length} stocks · {marketTime(scannerRows[0]?.as_of)} ET</span><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next signal →</button></div></div>
             {notice && <p className="notice">{notice}</p>}
             <div className="scanner-list" aria-label="Monitored stock signals">
               {loading ? <div className="empty-state">Loading scanner…</div> : scannerRows.map((row) => (
@@ -287,7 +287,7 @@ export default function App() {
                     <span className={row.rvol_pass ? "signal-value pass" : "signal-value"}><b>{row.rvol.toFixed(1)}×</b><small>Rel. volume</small></span>
                     <span className={`signal-count count-${row.signals_passed}`}><b>{row.signals_passed}/2</b><small>{row.signals_passed === 2 ? "Signal" : "Watching"}</small></span>
                   </button>
-                  <span className="scanner-news">{row.news_released ? (row.headline_url ? <a href={row.headline_url} target="_blank" rel="noreferrer" title={row.headline ?? "Company news"}>News ↗</a> : <small>News pending</small>) : <small>Monitoring</small>}</span>
+                  <span className={`scanner-news ${row.news_is_new ? "has-update" : ""}`}>{row.news_released ? (row.headline_url ? <a href={row.headline_url} target="_blank" rel="noreferrer" title={row.headline ?? "Company news"}>{row.news_is_new ? "New news" : "News"} ↗</a> : <small>News pending</small>) : <small>Monitoring</small>}</span>
                 </div>
               ))}
             </div>

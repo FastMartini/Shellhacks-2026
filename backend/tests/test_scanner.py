@@ -25,10 +25,15 @@ def scanner_db():
     return conn
 
 
-def add_news(conn, when: datetime, headline="Microsoft announces major cloud agreement"):
+def add_news(
+    conn,
+    when: datetime,
+    headline="Microsoft announces major cloud agreement",
+    url="https://example.com/news",
+):
     conn.execute(
-        "INSERT INTO news VALUES ('MSFT', ?, ?, 'https://example.com/news')",
-        (config.iso(when), headline),
+        "INSERT INTO news VALUES ('MSFT', ?, ?, ?)",
+        (config.iso(when), headline, url),
     )
 
 
@@ -108,12 +113,17 @@ def test_snapshot_keeps_news_released_after_live_signals_fall_back():
     assert before["signals_passed"] == 1
     assert before["momentum_pass"] is False and before["rvol_pass"] is True
     assert before["news_released"] is False and before["qualified_at"] is None
+    assert before["news_checked_at"] == config.iso(et(9, 30))
+    assert before["news_is_new"] is False and before["news_published_at"] is None
     assert before["headline"] is None and before["headline_url"] is None
 
     qualified = scanner.snapshot(et(9, 31), conn, ["MSFT"])[0]
     assert qualified["signals_passed"] == 2
     assert qualified["news_released"] is True
     assert qualified["qualified_at"] == config.iso(et(9, 31))
+    assert qualified["news_checked_at"] == config.iso(et(9, 30))
+    assert qualified["news_is_new"] is False
+    assert qualified["news_published_at"] == config.iso(et(9, 20))
     assert qualified["headline"].startswith("Microsoft")
     assert qualified["headline_url"] == "https://example.com/news"
     assert qualified["as_of"].endswith("09:31:00-04:00")
@@ -123,6 +133,29 @@ def test_snapshot_keeps_news_released_after_live_signals_fall_back():
     assert pulled_back["momentum_pass"] is False and pulled_back["rvol_pass"] is False
     assert pulled_back["news_released"] is True
     assert pulled_back["headline_url"] == "https://example.com/news"
+
+
+def test_news_updates_only_on_ten_minute_checks_and_marks_a_different_story():
+    conn = scanner_db()
+    add_news(conn, et(9, 20))
+    add_news(
+        conn,
+        et(9, 32),
+        "Microsoft announces a second Copilot partnership",
+        "https://example.com/update",
+    )
+    scanner.rebuild_alerts(conn, ["MSFT"])
+
+    before_check = scanner.snapshot(et(9, 39), conn, ["MSFT"])[0]
+    assert before_check["news_checked_at"] == config.iso(et(9, 30))
+    assert before_check["news_is_new"] is False
+    assert before_check["headline_url"] == "https://example.com/news"
+
+    next_check = scanner.snapshot(et(9, 40), conn, ["MSFT"])[0]
+    assert next_check["news_checked_at"] == config.iso(et(9, 40))
+    assert next_check["news_is_new"] is True
+    assert next_check["news_published_at"] == config.iso(et(9, 32))
+    assert next_check["headline_url"] == "https://example.com/update"
 
 
 def test_precomputes_one_alert_but_hides_it_until_replay_reaches_it():
@@ -160,7 +193,7 @@ def test_alerts_http_contract_and_replay_visibility():
             assert set(monitored[0]) == {
                 "symbol", "token_symbol", "price", "change_pct", "rvol", "momentum_pass",
                 "rvol_pass", "signals_passed", "as_of", "news_released", "qualified_at",
-                "headline", "headline_url",
+                "news_checked_at", "news_is_new", "news_published_at", "headline", "headline_url",
             }
             state = api.post("/replay/next-alert").json()
             assert state["sim_time"] == config.iso(et(9, 31))

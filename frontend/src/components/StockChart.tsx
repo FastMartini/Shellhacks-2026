@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import type { PriceBar } from "../api/types";
 
 type ChartRange = "1H" | "4H" | "Session";
+type ChartStyle = "line" | "candles";
 
 const WIDTH = 800;
 const HEIGHT = 300;
@@ -48,6 +49,7 @@ export function StockChart({ symbol, bars, loading, error }: {
   error: string | null;
 }) {
   const [range, setRange] = useState<ChartRange>("Session");
+  const [chartStyle, setChartStyle] = useState<ChartStyle>(() => window.localStorage.getItem("stock-chart-style") === "candles" ? "candles" : "line");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const visible = useMemo(() => rangeBars(bars, range), [bars, range]);
 
@@ -87,6 +89,11 @@ export function StockChart({ symbol, bars, loading, error }: {
     setHoverIndex(Math.round(ratio * (visible.length - 1)));
   }
 
+  function chooseChartStyle(nextStyle: ChartStyle) {
+    setChartStyle(nextStyle);
+    window.localStorage.setItem("stock-chart-style", nextStyle);
+  }
+
   return <div className="stock-chart">
     <div className="stock-chart-toolbar">
       <div className="stock-chart-quote">
@@ -94,14 +101,19 @@ export function StockChart({ symbol, bars, loading, error }: {
         <span className={change >= 0 ? "positive" : "negative"}>{change >= 0 ? "+" : ""}{change.toFixed(2)}%</span>
         <small>{chartTime(selected.time)} ET · O {dollars(selected.open)} · H {dollars(selected.high)} · L {dollars(selected.low)}</small>
       </div>
-      <div className="chart-ranges" aria-label="Chart range">
-        {(["1H", "4H", "Session"] as ChartRange[]).map((option) => <button type="button" key={option} className={range === option ? "active" : ""} onClick={() => { setRange(option); setHoverIndex(null); }}>{option}</button>)}
+      <div className="chart-controls">
+        <div className="chart-ranges" aria-label="Chart display">
+          {(["line", "candles"] as ChartStyle[]).map((option) => <button type="button" key={option} className={chartStyle === option ? "active" : ""} aria-pressed={chartStyle === option} onClick={() => chooseChartStyle(option)}>{option === "line" ? "Line" : "Candles"}</button>)}
+        </div>
+        <div className="chart-ranges" aria-label="Chart range">
+          {(["1H", "4H", "Session"] as ChartRange[]).map((option) => <button type="button" key={option} className={range === option ? "active" : ""} onClick={() => { setRange(option); setHoverIndex(null); }}>{option}</button>)}
+        </div>
       </div>
     </div>
     <svg
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       role="img"
-      aria-label={`${symbol} Alpaca price and volume chart`}
+      aria-label={`${symbol} Alpaca ${chartStyle === "candles" ? "candlestick" : "line"} price and volume chart`}
       onPointerMove={(event) => selectNearest(event.clientX, event.currentTarget.getBoundingClientRect())}
       onPointerLeave={() => setHoverIndex(null)}
     >
@@ -126,8 +138,19 @@ export function StockChart({ symbol, bars, loading, error }: {
         const barHeight = bar.volume / volumeMax * (VOLUME_BOTTOM - VOLUME_TOP);
         return <rect key={bar.time} className="stock-chart-volume" x={x(index) - barWidth / 2} y={VOLUME_BOTTOM - barHeight} width={barWidth} height={barHeight} />;
       })}
-      <polygon points={`${LEFT},${PRICE_BOTTOM} ${coordinates} ${WIDTH - RIGHT},${PRICE_BOTTOM}`} fill={`url(#stock-fill-${symbol})`} />
-      <polyline points={coordinates} fill="none" stroke="#6cf2a6" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      {chartStyle === "line" ? <>
+        <polygon points={`${LEFT},${PRICE_BOTTOM} ${coordinates} ${WIDTH - RIGHT},${PRICE_BOTTOM}`} fill={`url(#stock-fill-${symbol})`} />
+        <polyline points={coordinates} fill="none" stroke="#6cf2a6" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </> : visible.map((bar, index) => {
+        const candleWidth = Math.max(1.2, Math.min(7, plotWidth / visible.length * .72));
+        const bodyTop = Math.min(y(bar.open), y(bar.close));
+        const bodyHeight = Math.max(1, Math.abs(y(bar.open) - y(bar.close)));
+        const direction = bar.close >= bar.open ? "up" : "down";
+        return <g className={`stock-candle ${direction}`} key={`candle-${bar.time}`}>
+          <line x1={x(index)} x2={x(index)} y1={y(bar.high)} y2={y(bar.low)} />
+          <rect x={x(index) - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} />
+        </g>;
+      })}
       <line className="stock-chart-crosshair" x1={x(selectedIndex)} x2={x(selectedIndex)} y1={PRICE_TOP} y2={VOLUME_BOTTOM} />
       <circle cx={x(selectedIndex)} cy={y(selected.close)} r="4" fill="#07100d" stroke="#6cf2a6" strokeWidth="2" vectorEffect="non-scaling-stroke" />
       <text className="stock-chart-time" x={x(selectedIndex)} y={HEIGHT - 4} textAnchor={selectedIndex < visible.length / 2 ? "start" : "end"}>{chartTime(selected.time)} ET</text>

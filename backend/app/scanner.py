@@ -74,6 +74,18 @@ def _latest_catalyst(rows: list[sqlite3.Row], symbol: str, at: datetime) -> sqli
     return (named or eligible)[-1]
 
 
+def _news_check_time(at: datetime) -> datetime:
+    """Latest ten-minute replay boundary at which the scanner checks news."""
+    at = at.astimezone(config.ET).replace(second=0, microsecond=0)
+    return at - timedelta(minutes=at.minute % config.NEWS_CHECK_INTERVAL_MINUTES)
+
+
+def _news_identity(row: sqlite3.Row | None) -> str | None:
+    if row is None:
+        return None
+    return _normalize_headline(row["headline"])
+
+
 def _session_start(at: datetime) -> datetime:
     if at < config.MARKET_OPEN:
         return config.PREMARKET_OPEN
@@ -116,13 +128,15 @@ def snapshot(at: datetime, conn: sqlite3.Connection | None = None, symbols: list
             (symbol, metrics["as_of"]),
         ).fetchone()
         news_released = release is not None
-        catalyst = (
-            _latest_catalyst(
-                _quality_news(conn, symbol), symbol, datetime.fromisoformat(metrics["as_of"])
-            )
-            if news_released
+        checked_at = _news_check_time(datetime.fromisoformat(metrics["as_of"]))
+        news_rows = _quality_news(conn, symbol) if news_released else []
+        catalyst = _latest_catalyst(news_rows, symbol, checked_at) if news_released else None
+        initial_catalyst = (
+            _latest_catalyst(news_rows, symbol, _news_check_time(datetime.fromisoformat(release["ts"])))
+            if release
             else None
         )
+        news_is_new = catalyst is not None and _news_identity(catalyst) != _news_identity(initial_catalyst)
         rows.append({
             "symbol": symbol,
             "token_symbol": f"{symbol}x-demo",
@@ -130,6 +144,9 @@ def snapshot(at: datetime, conn: sqlite3.Connection | None = None, symbols: list
             "signals_passed": int(metrics["momentum_pass"]) + int(metrics["rvol_pass"]),
             "news_released": news_released,
             "qualified_at": release["ts"] if release else None,
+            "news_checked_at": config.iso(checked_at),
+            "news_is_new": news_is_new,
+            "news_published_at": catalyst["published_at"] if catalyst else None,
             "headline": catalyst["headline"] if catalyst else None,
             "headline_url": catalyst["url"] if catalyst else None,
         })
@@ -167,7 +184,7 @@ def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
 
         if change_pct < config.MIN_CHANGE_PCT or relative_volume < config.MIN_RVOL:
             continue
-        catalyst = _latest_catalyst(news_rows, symbol, at)
+        catalyst = _latest_catalyst(news_rows, symbol, _news_check_time(at))
         return {
             "id": f"{symbol}-{at:%H%M}",
             "symbol": symbol,

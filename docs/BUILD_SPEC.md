@@ -76,7 +76,7 @@ Agree on these shapes in the first hour. Every endpoint ships first as a stub re
 | GET | `/prices` | `[{symbol, price, prev_close, change_pct, sim_time}]` for all 19 |
 | GET | `/prices/{symbol}` | one of the above |
 | GET | `/prices/{symbol}/history` | Alpaca minute bars reached by the replay clock: `[{time, open, high, low, close, volume}]` |
-| GET | `/scanner` | all 19 stock rows for the current replay minute: price change, RVOL, two live signal states, and sticky news-release state after the stock first reaches 2/2 |
+| GET | `/scanner` | all 19 stock rows for the current replay minute: price change, RVOL, two live signal states, sticky news-release state, and ten-minute news-check/update metadata |
 
 Python code inside the backend calls these instead of HTTP:
 
@@ -99,6 +99,7 @@ The clock starts **paused at 7:00 AM** and stops itself at 4:15 PM. Alpaca bars 
 - The scanner runs over the whole replay day at startup, stores every alert in SQLite, and `/alerts` reveals only the ones the clock has passed.
 - `/scanner` always returns every monitored stock at the replay clock's current minute. Values change only when the minute changes, even though the UI polls more frequently.
 - An alert requires the two market signals: price at least 3% above the previous close and RVOL at least 2× its session-adjusted average. Company news is context, not a third signal; after both signals first pass, its release state persists even if live momentum or RVOL later falls.
+- Relevant company news is evaluated on ten-minute replay boundaries. A different later article appears at the next boundary and is marked as new in the momentum monitor.
 - **At most one alert per stock per day.**
 - **No look-ahead:** the news rule and the headline only use news with `published_at` at or before the alert time.
 
@@ -170,7 +171,7 @@ The scanner uses real Alpaca bars from 4:00 AM through 4:15 PM ET for complete s
 | --- | --- | --- |
 | Relative volume | ≥ 5 | ≥ 2: session volume ÷ (20-day average daily volume × share of a 390-minute baseline elapsed); volume resets at 9:30 AM and 4:00 PM so extended-hours volume does not inflate the next session |
 | Price move | Up ≥ 10% | Up ≥ 3% from the previous close |
-| News catalyst | Within 24 h | Not an alert gate. After both market signals pass, reveal filtered Finnhub company news published in the prior 24 hours |
+| News catalyst | Within 24 h | Not an alert gate. After both market signals pass, reveal filtered Finnhub company news published in the prior 24 hours; recheck every 10 replay minutes and flag a different article as new |
 | Price range | $2–$20 | Dropped (tokens are fractional) |
 | Float | < 20M shares | Dropped. Optional replacement: breaks above the pre-market high |
 
@@ -191,7 +192,7 @@ Both market signals must pass for an alert. Long only. One alert per stock per d
 
 **Replay data:** Alpaca free tier, 1-minute bars with **`feed=sip`** (the full market; free as long as the query ends at least 15 minutes ago), Friday 4:00 AM–8:00 PM ET, plus 20 prior days of daily bars for the volume baseline. Download once into SQLite; carry the last price forward over any empty minute.
 
-**Scanner chart:** selecting an alert or tracked symbol opens its underlying stock's Alpaca SIP price/volume chart and labels the corresponding `x-demo` token. The chart supports 1-hour, 4-hour and full-session views, never shows bars ahead of the replay clock, and distinguishes pre-market, regular and post-market sessions.
+**Scanner chart:** selecting an alert or tracked symbol opens its underlying stock's Alpaca SIP price/volume chart and labels the corresponding `x-demo` token. The chart supports line and candlestick preferences plus 1-hour, 4-hour and full-session views, never shows bars ahead of the replay clock, and distinguishes pre-market, regular and post-market sessions.
 
 **Replay controls:** starts paused at 7:00 AM; start/pause; speed picker (1×, 10×, 30×, 60×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 7:00 AM while the wallet has no deposits; the clock stops at 4:15 PM.
 

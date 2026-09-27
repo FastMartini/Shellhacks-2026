@@ -27,6 +27,7 @@ SYMBOLS = [
 MIN_CHANGE_PCT = 3.0
 MIN_RVOL = 2.0
 NEWS_LOOKBACK_HOURS = 24
+NEWS_CHECK_INTERVAL_MINUTES = 10
 
 # Prefer a catalyst that names the company represented by the stock. Short
 # tickers such as ZS are intentionally omitted because substring matching them
