@@ -2,7 +2,7 @@
 
 What's left before the Sunday 10:30 AM submission, in the order it has to happen. Scope and contracts live in [`BUILD_SPEC.md`](BUILD_SPEC.md); this file only tracks who is doing what next.
 
-Last updated: Sat Sept 26, 10:40 PM ET. **The 10:30 PM checkpoint passed at 10:35 PM**: the must-have loop works end to end on devnet (connect → demo dollars → buy → sell → log → total P/L), so Nice-tier work can start. Next deadline: 9:00 AM Sunday feature freeze.
+Last updated: Sat Sept 26, 10:45 PM ET. **The 10:30 PM checkpoint passed at 10:35 PM**: the must-have loop works end to end on devnet (connect → demo dollars → buy → sell → log → total P/L), so Nice-tier work can start. Next deadline: 9:00 AM Sunday feature freeze.
 
 **How to use it**
 
@@ -13,11 +13,11 @@ Last updated: Sat Sept 26, 10:40 PM ET. **The 10:30 PM checkpoint passed at 10:3
 
 ## Now: 10:30 PM checkpoint (must-have loop)
 
-- [ ] **Diego** · In the ticket, answer `502 chain_unavailable` from `/trade/submit` by submitting the same quote again; re-quote only on `quote_expired` or `tx_failed` (#17, spec section 3).
-- [ ] **Justin** · Add `SOLANA_RPC_URL` (Helius devnet URL) and `VAULT_KEYPAIR` to `backend/.env.example`. Everyone puts the Helius URL in `backend/.env`, and in `frontend/.env` as `VITE_SOLANA_RPC_URL`.
+All done; see Done (#19, #21).
 
 ## Should tier (after the loop works)
 
+- [ ] **Justin** · Create a free Helius devnet key (https://dashboard.helius.dev) and share the URL in the team channel. Everyone puts it in `backend/.env` as `SOLANA_RPC_URL` and in `frontend/.env` as `VITE_SOLANA_RPC_URL`, replacing the rate-limited public RPC before the demo. `backend/.env.example` shows the format (#21).
 - [ ] **Diego, Matthew** · Pick the live demo trade: stock, buy minute and sell minute, checked against the real bars. `seed_demo.py` already uses AKAM as the loss, so per the spec the live trade is MSFT or DDOG. Write it into the spec's demo script (both copies).
 - [ ] **Diego** · Demo reset button in the UI that calls `/demo/reset`. Today's "Reset timer" only moves the clock and is disabled after a deposit. Optional if `seed_demo.py` covers every rehearsal.
 - [ ] **Khalil, Matthew** · Decide the demo's faucet beat. `seed_demo.py` already deposits $1,000 at 6:00, so clicking "Get demo dollars" on stage makes a second deposit: the account-value chart jumps from about $993 to $1,993, which dwarfs the live trade, and total P/L % halves. Skip the click and point at the seeded deposit, do it on a fresh wallet, or chart P/L instead of account value. Write the choice into the spec's demo script (both copies). (#16 review)
@@ -60,7 +60,8 @@ Last updated: Sat Sept 26, 10:40 PM ET. **The 10:30 PM checkpoint passed at 10:3
 
 | When (ET) | What | PR |
 | --- | --- | --- |
-| Sat 10:35 PM | 10:30 PM checkpoint passed: Khalil ran the loop on devnet with Phantom (connect → demo dollars → buy → sell → log with explorer link → total P/L), backend on #19's branch, 1,165 requests all 200 | #19 |
+| Sat 10:45 PM | Trade ticket resubmits the same quote on `502 chain_unavailable` / `409 submit_in_progress` and re-quotes on `quote_expired` or `tx_failed`; `backend/.env.example` has `SOLANA_RPC_URL` and `VAULT_KEYPAIR` | #21 |
+| Sat 10:35 PM | 10:30 PM checkpoint passed: Khalil ran the loop on devnet with Phantom (connect → demo dollars → buy → sell → log with explorer link → total P/L), backend on #19's branch, 1,165 requests all 200 | #21 |
 | Sat 10:25 PM | One SQLite connection per thread plus WAL: `/portfolio` and `/transactions` no longer 500 under polling (load test: 50 of 900 before, 0 after) | #19 |
 | Sat 9:34 PM | Vault error codes in the spec (both copies); a lost reply or dropped connection mid-trade no longer loses or doubles a trade | #17 |
 | Sat 9:08 PM | Frontend wired to the vault: Get demo dollars, quote → Phantom signs → submit | #16 |
