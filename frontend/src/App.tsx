@@ -276,8 +276,19 @@ export default function App() {
       {vaultFeedback && <div className={`vault-feedback ${vaultFeedback.kind}`} role={vaultFeedback.kind === "error" ? "alert" : "status"}><span>{vaultFeedback.message}</span><button aria-label="Dismiss message" onClick={() => setVaultFeedback(null)}>×</button></div>}
 
       {view === "scanner" ? <>
-        <section className="hero">
-          <div><p className="eyebrow">Alpaca SIP market replay</p><h1>Trade the signal.<br />Understand the move.</h1><p className="lede">Large-cap momentum alerts backed by real Friday prices from pre-market through 4:15 PM ET, relative volume, and company news.</p><div className="rule-pills"><span>4:00 AM–4:15 PM ET</span><span>≥ 3% move</span><span>≥ 2× RVOL</span><span>News ≤ 24h</span></div></div>
+        <section className="scanner-overview">
+          <div className="panel alerts-panel">
+            <div className="panel-heading"><div><p className="eyebrow">Alpaca SIP scanner · 4:00 AM–4:15 PM ET</p><h2>Momentum alerts</h2></div><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next →</button></div>
+            {notice && <p className="notice">{notice}</p>}
+            <div className="alert-list">
+              {loading ? <div className="empty-state">Loading scanner…</div> : visibleAlerts.length === 0 ? <div className="empty-state"><b>No alerts revealed yet</b><span>Start the pre-market replay or jump directly to the first signal.</span></div> : visibleAlerts.map((alert) => (
+                <button className={`alert-row ${selectedSymbol === alert.symbol ? "selected" : ""}`} key={alert.id} onClick={() => setSelectedSymbol(alert.symbol)}>
+                  <span className="ticker">{alert.symbol}<small>{alert.symbol}x-demo</small></span><span><b>{signed(alert.change_pct, "%")}</b><small>Price move</small></span><span><b>{alert.rvol.toFixed(1)}×</b><small>Rel. volume</small></span><time>{marketTime(alert.time)}</time>
+                </button>
+              ))}
+            </div>
+            {selectedAlert?.headline && <a className="headline" href={selectedAlert.headline_url ?? "#"} target="_blank" rel="noreferrer"><span>Qualifying catalyst</span>{selectedAlert.headline}<b>↗</b></a>}
+          </div>
           <div className="replay-card">
             <div><span className={replay?.running ? "live-dot running" : "live-dot"} /> {replay?.running ? "Replay running" : "Replay paused"}<span className="session-badge">{marketSession(replay?.sim_time)}</span></div>
             <strong>{marketTime(replay?.sim_time)} ET</strong>
@@ -288,18 +299,13 @@ export default function App() {
         </section>
 
         <section className="workspace">
-          <div className="panel alerts-panel">
-            <div className="panel-heading"><div><p className="eyebrow">Scanner</p><h2>Momentum alerts</h2></div><button className="text-button" disabled={working} onClick={() => void jumpToNextAlert()}>Jump to next →</button></div>
-            {notice && <p className="notice">{notice}</p>}
-            <div className="alert-list">
-              {loading ? <div className="empty-state">Loading scanner…</div> : visibleAlerts.length === 0 ? <div className="empty-state"><b>No alerts revealed yet</b><span>Start the replay or jump directly to the first signal.</span></div> : visibleAlerts.map((alert) => (
-                <button className={`alert-row ${selectedSymbol === alert.symbol ? "selected" : ""}`} key={alert.id} onClick={() => setSelectedSymbol(alert.symbol)}>
-                  <span className="ticker">{alert.symbol}<small>{alert.symbol}x-demo</small></span><span><b>{signed(alert.change_pct, "%")}</b><small>Price move</small></span><span><b>{alert.rvol.toFixed(1)}×</b><small>Rel. volume</small></span><time>{marketTime(alert.time)}</time>
-                </button>
-              ))}
+          <section className="panel stock-chart-panel" aria-label={`${selectedSymbol} trading chart`}>
+            <div className="panel-heading stock-chart-heading">
+              <div><p className="eyebrow">Underlying market chart</p><h2>{selectedSymbol} <span>→ {selectedSymbol}x-demo</span></h2></div>
+              <div className="chart-current"><strong>{selectedPrice ? money(selectedPrice.price) : "—"}</strong><small className={selectedPrice && selectedPrice.change_pct < 0 ? "negative" : "positive"}>{selectedPrice ? signed(selectedPrice.change_pct, "% vs. close") : "Waiting for price"}</small></div>
             </div>
-            {selectedAlert?.headline && <a className="headline" href={selectedAlert.headline_url ?? "#"} target="_blank" rel="noreferrer"><span>Qualifying catalyst</span>{selectedAlert.headline}<b>↗</b></a>}
-          </div>
+            <StockChart symbol={selectedSymbol} bars={chart?.symbol === selectedSymbol ? chart.bars : []} loading={chart?.symbol !== selectedSymbol && chartError == null} error={chartError} />
+          </section>
 
           <aside className="panel trade-panel">
             <p className="eyebrow">Trade ticket preview</p>
@@ -311,14 +317,6 @@ export default function App() {
             <button className="primary" disabled={vaultAction != null || !canTrade} onClick={() => void submitTrade()}>{tradeButtonLabel()}</button>
             <small className="disclaimer">Market data is real. Trades will use devnet test tokens with no monetary value.</small>
           </aside>
-        </section>
-
-        <section className="panel stock-chart-panel" aria-label={`${selectedSymbol} trading chart`}>
-          <div className="panel-heading stock-chart-heading">
-            <div><p className="eyebrow">Underlying market chart</p><h2>{selectedSymbol} <span>→ {selectedSymbol}x-demo</span></h2></div>
-            <div className="chart-current"><strong>{selectedPrice ? money(selectedPrice.price) : "—"}</strong><small className={selectedPrice && selectedPrice.change_pct < 0 ? "negative" : "positive"}>{selectedPrice ? signed(selectedPrice.change_pct, "% vs. close") : "Waiting for price"}</small></div>
-          </div>
-          <StockChart symbol={selectedSymbol} bars={chart?.symbol === selectedSymbol ? chart.bars : []} loading={chart?.symbol !== selectedSymbol && chartError == null} error={chartError} />
         </section>
 
         <section className="market-strip" aria-label="Replay market prices">
