@@ -42,6 +42,10 @@ def node_behind():
     return RPCException(SimpleNamespace(message="Node is behind by 50 slots"))
 
 
+def already_processed():
+    return RPCException(SimpleNamespace(message="This transaction has already been processed"))
+
+
 def et(hh, mm):
     return datetime(2026, 9, 25, hh, mm, tzinfo=config.ET)
 
@@ -54,7 +58,7 @@ class FakeRpc:
         self.sent: list[Transaction] = []
         self.fail_send = None      # exception send_raw_transaction raises
         self.fail_confirm = None   # exception confirm_transaction raises
-        self.drop_send_reply = False  # the transaction lands but the reply is lost
+        self.drop_send_reply = None   # the transaction lands, then the send raises this instead of replying
         self.drop_confirms = 0        # confirm calls that fail first
         self.drop_statuses = 0        # status lookups that fail first
         self.drop_with = network_error  # how those fail
@@ -89,7 +93,7 @@ class FakeRpc:
             if self.err is None:       # a failed one landed but changed nothing
                 self._apply(tx)
         if self.drop_send_reply:
-            raise network_error()
+            raise self.drop_send_reply
         return SimpleNamespace(value=tx.signatures[0])
 
     async def confirm_transaction(self, sig, commitment=None, sleep_seconds=0.5, last_valid_block_height=None):
@@ -272,10 +276,22 @@ def test_a_submit_already_in_flight_is_refused(rpc):
 def test_a_lost_send_reply_still_records_the_trade(rpc):
     # The transaction reached devnet but the reply didn't come back: checking its signature finds it confirmed.
     q = buy_quote(rpc)
-    rpc.drop_send_reply = True
+    rpc.drop_send_reply = network_error()
     r = submit(q)
     assert r.status_code == 200 and r.json()["signature"] == str(rpc.sent[0].signatures[0])
     assert len(ledger.rows(W)) == 1
+
+
+def test_an_error_reply_while_checking_a_refused_resend_does_not_lose_the_trade(rpc):
+    # The first copy landed and solana-py's resend was refused as already processed, but the lookup that tells that
+    # apart from a real rejection got an error reply. It can't tell, so 502 rather than tx_failed: a resubmit checks.
+    q = buy_quote(rpc)
+    rpc.drop_send_reply = already_processed()
+    rpc.drop_with, rpc.drop_statuses = node_behind, 1
+    r = submit(q)
+    assert (r.status_code, r.json()["error"]) == (502, "chain_unavailable") and ledger.rows(W) == []
+    assert submit(q).status_code == 200
+    assert len(rpc.sent) == 1 and len(ledger.rows(W)) == 1
 
 
 def test_confirm_survives_a_dropped_connection(rpc):

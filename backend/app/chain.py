@@ -155,11 +155,15 @@ async def send_and_confirm(rpc: AsyncClient, tx: Transaction, last_valid_block_h
     except SolanaRpcException:
         if last_valid_block_height is None:  # nothing bounds the wait, so don't guess
             raise
-    except RPCException:
+    except RPCException as rejected:
         # If solana-py's resend follows a copy that landed, devnet refuses it as already processed. Only a
         # signature devnet has never seen is a real rejection.
-        if (await rpc.get_signature_statuses([sig])).value[0] is None:
-            raise
+        try:
+            landed = (await rpc.get_signature_statuses([sig])).value[0] is not None
+        except (SolanaRpcException, RPCException) as e:  # can't tell whether the first copy landed
+            raise UnconfirmedTxError(f"couldn't check on {sig}") from e
+        if not landed:
+            raise rejected
     await confirm(rpc, sig, last_valid_block_height)
     return sig
 
