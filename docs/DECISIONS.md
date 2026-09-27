@@ -1,6 +1,6 @@
 # Decisions, research and open items
 
-Companion to `BUILD_SPEC.md` (what we're building). This file records **why**, what we researched, and what's still unverified. Last updated Sat Sept 26, 2026, 11:25 PM ET. Both Saturday checkpoints passed: the 6:00 PM one (vault test run, scanner on real bars) and the 10:30 PM one (the must-have loop, end to end on devnet). Rows 18–22 were decided during the build.
+Companion to `BUILD_SPEC.md` (what we're building). This file records **why**, what we researched, and what's still unverified. Last updated Sun Sept 27, 2026. Both Saturday checkpoints passed: the 6:00 PM one (vault test run, scanner on real bars) and the 10:30 PM one (the must-have loop, end to end on devnet). Rows 18–23 were decided during the build.
 
 ## Decision log
 
@@ -30,6 +30,7 @@ Settled with the team in a question-by-question review (Sept 25–26). Later dec
 | 20 | Faucet | Each wallet gets $1,000 once (409 `already_funded` until `/demo/reset`); on stage Khalil points at the seeded deposit instead of clicking (#20) | A second deposit dwarfed the live trade on the account-value chart and halved total P/L % |
 | 21 | Retried submits | The backend never trades a quote twice: a repeat returns the same row, waits (`submit_in_progress`), or checks the signature it already sent. The ticket resubmits the same quote for up to 2 minutes after `chain_unavailable`, `submit_in_progress` or a dropped connection, and re-quotes only on `quote_expired` or `tx_failed` (#17, #21, #22) | A lost reply or a devnet hiccup mid-trade must not lose or double a trade. 2 minutes outlasts the quote's blockhash, after which the backend can say for sure whether the trade landed |
 | 22 | SQLite access | One connection per thread, WAL mode (#19) | A shared connection made `/portfolio` and `/transactions` return 500 under the UI's 2-second polling |
+| 23 | Scanner charts and hours | Chart all 19 supported stocks from Alpaca minute bars; scan 4:00 AM–4:15 PM ET, with visible pre-market/regular/post-market labels | Token prices should remain grounded in their underlying stocks, and pre-market moves matter to momentum traders. The replay still starts at 9:25 AM so seeded demo trades remain visible |
 
 ## Independent review (Sept 26) — all applied to the spec
 

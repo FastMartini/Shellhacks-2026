@@ -41,6 +41,7 @@ h1 { max-width: 760px; font-size: clamp(40px, 5.2vw, 68px); line-height: 1.02; l
 .replay-card, .panel, .stat-card, .market-strip { border: 1px solid #ffffff14; background: #0d1915cc; box-shadow: 0 18px 50px #00000024; }
 .replay-card { padding: 26px; border-radius: 18px; }
 .replay-card > div { color: #9eb0a7; font-size: 13px; }
+.session-badge { float: right; padding: 3px 7px; color: #bdf8d5; border: 1px solid #6cf2a633; border-radius: 999px; background: #6cf2a60d; font-size: 10px; font-weight: 700; }
 .replay-card strong { display: block; margin: 14px 0 24px; font: 700 30px Manrope, sans-serif; }
 .primary { width: 100%; padding: 13px 18px; border: 0; border-radius: 10px; color: #07100d; background: #6cf2a6; font-weight: 700; }
 .replay-meta { display: flex; justify-content: space-between; margin: -12px 0 16px; color: #70837a !important; font-size: 11px !important; }
@@ -105,6 +106,39 @@ input:focus { border-color: #6cf2a6; }
 .price-grid button span { color: #9cada4; font-size: 12px; }
 .price-grid button small { font-weight: 700; }
 
+.stock-chart-panel { margin-top: 16px; overflow: hidden; }
+.stock-chart-heading h2 { display: flex; align-items: baseline; gap: 9px; }
+.stock-chart-heading h2 span { color: #71837a; font: 600 12px "DM Sans", sans-serif; }
+.chart-current { display: grid; gap: 3px; text-align: right; }
+.chart-current strong { font: 700 21px Manrope, sans-serif; }
+.chart-current small { font-size: 11px; }
+.stock-chart-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.stock-chart-quote { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 4px 10px; }
+.stock-chart-quote strong { font: 700 23px Manrope, sans-serif; }
+.stock-chart-quote > span { font-size: 12px; font-weight: 700; }
+.stock-chart-quote small { grid-column: 1 / -1; color: #71837a; font-size: 10px; }
+.chart-ranges { display: flex; gap: 3px; padding: 3px; border: 1px solid #ffffff0d; border-radius: 9px; background: #07100d; }
+.chart-ranges button { padding: 6px 9px; color: #82948b; border: 0; border-radius: 6px; background: transparent; font-size: 10px; font-weight: 700; }
+.chart-ranges button.active { color: #07100d; background: #6cf2a6; }
+.stock-chart svg { display: block; width: 100%; min-height: 250px; touch-action: none; }
+.stock-chart-grid { stroke: #ffffff10; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.stock-chart-axis, .stock-chart-time { fill: #71837a; font: 10px "DM Sans", sans-serif; }
+.stock-chart-volume { fill: #6cf2a630; }
+.stock-chart-crosshair { stroke: #dff9ea55; stroke-width: 1; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+.session-shade.premarket { fill: #548cff08; }
+.session-shade.regular { fill: #6cf2a604; }
+.session-shade.postmarket { fill: #d596ff08; }
+.stock-chart-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; color: #71837a; font-size: 10px; }
+.stock-chart-legend span { display: flex; align-items: center; gap: 5px; }
+.stock-chart-legend span:last-child { margin-left: auto; }
+.stock-chart-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
+.premarket-key { background: #548cff66; }
+.regular-key { background: #6cf2a666; }
+.postmarket-key { background: #d596ff66; }
+.stock-chart-state { display: grid; min-height: 310px; place-content: center; gap: 6px; color: #71837a; text-align: center; }
+.stock-chart-state b { color: #dfece6; }
+.stock-chart-state.error { color: #ffaaa1; }
+
 .portfolio-grid { display: grid; grid-template-columns: 1.5fr .8fr; gap: 16px; }
 .range-pill { padding: 7px 10px; color: #8fa198; border: 1px solid #ffffff12; border-radius: 999px; font-size: 11px; }
 .chart-panel { min-height: 370px; }
@@ -143,6 +177,7 @@ input:focus { border-color: #6cf2a6; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .workspace, .portfolio-grid { grid-template-columns: 1fr; }
   .price-grid { grid-template-columns: repeat(3, 1fr); }
+  .stock-chart svg { min-height: 210px; }
 }
 
 @media (max-width: 520px) {
@@ -156,5 +191,8 @@ input:focus { border-color: #6cf2a6; }
   .alert-row { grid-template-columns: 1fr 1fr auto; }
   .alert-row span:nth-child(3) { display: none; }
   .price-grid { grid-template-columns: repeat(2, 1fr); }
+  .stock-chart-toolbar { align-items: stretch; flex-direction: column; }
+  .chart-ranges { align-self: flex-start; }
+  .stock-chart-legend span:last-child { width: 100%; margin-left: 0; }
   .error-banner { align-items: flex-start; flex-direction: column; }
 }

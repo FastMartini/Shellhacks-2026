@@ -24,12 +24,12 @@ The must-have loop works end to end on devnet with Phantom (connect → demo dol
 
 | Piece | Owner | State |
 | --- | --- | --- |
-| Replay clock + prices (`/replay/*`, `/prices`) | Khalil | Working; falls back to placeholder prices until replay bars are loaded |
+| Replay clock + prices (`/replay/*`, `/prices`) | Khalil | Working; serves quotes and chart history from Alpaca bars, with placeholder quotes until replay bars are loaded |
 | Trade log + stats (`/transactions`, `/portfolio`) | Khalil | Working, computed from the ledger |
 | Replay data loader (Alpaca bars, Finnhub news) | Matthew | Working; loads 19 symbols atomically into SQLite |
 | Vault (`/faucet`, `/trade/quote`, `/trade/submit`, `/demo/reset`) | Matthew | Working on devnet. The faucet funds each wallet once; a retried submit never trades twice |
-| Scanner + `/alerts` | Diego | Working; 3 real-data alerts (AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM), revealed by replay time |
-| Frontend | Diego, Justin | Working: scanner (alerts, replay controls, trade ticket through Phantom) and dashboard (account value, stats, account-value chart, holdings, trade log). Average win vs. average loss isn't shown yet |
+| Scanner + `/alerts` | Diego | Working from 4:00 AM–4:15 PM ET; 3 real-data alerts (AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM), revealed by replay time |
+| Frontend | Diego, Justin | Working: scanner (alerts, Alpaca price/volume charts, replay controls, trade ticket through Phantom) and dashboard (account value, stats, account-value chart, holdings, trade log). Average win vs. average loss isn't shown yet |
 | Mints, vault keypair, `mints.json` | Justin | Done on devnet with `scripts/setup_devnet.py` (#9) |
 | Demo seed (`seed_demo.py`) | Matthew | Working; pre-runs the non-live demo trades with the demo wallet |
 

@@ -61,8 +61,16 @@ def test_clock_stops_at_close():
     c = ReplayClock(ft)
     c.start()
     ft.t = 10_000
-    assert c.sim_time == config.MARKET_CLOSE
+    assert c.sim_time == config.SCANNER_CLOSE
     assert c.running is False
+
+
+def test_seek_clamps_to_scanner_window():
+    c = ReplayClock(FakeTime())
+    c.seek(et(3, 0))
+    assert c.sim_time == config.PREMARKET_OPEN
+    c.seek(et(18, 0))
+    assert c.sim_time == config.SCANNER_CLOSE
 
 
 def test_price_at_uses_prev_close_then_last_bar(conn):
@@ -87,7 +95,22 @@ def test_http_contracts(conn):
     rows = api.get("/prices").json()
     assert len(rows) == 19 and set(rows[0]) == {"symbol", "price", "prev_close", "change_pct", "sim_time"}
 
+    conn.executemany(
+        "INSERT INTO bars VALUES ('AKAM', ?, 115, 119, 114, ?, ?)",
+        [
+            (config.iso(et(9, 30)), 115.0, 500),
+            (config.iso(et(9, 32)), 118.0, 300),
+            (config.iso(et(10, 1)), 117.0, 200),
+        ],
+    )
+    history = api.get("/prices/AKAM/history").json()
+    assert len(history) == 2
+    assert set(history[0]) == {"time", "open", "high", "low", "close", "volume"}
+
     r = api.get("/prices/NOPE")
+    assert r.status_code == 404 and r.json()["error"] == "unknown_symbol"
+
+    r = api.get("/prices/NOPE/history")
     assert r.status_code == 404 and r.json()["error"] == "unknown_symbol"
 
     r = api.post("/replay/control", json={"action": "jump"})

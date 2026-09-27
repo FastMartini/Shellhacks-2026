@@ -85,14 +85,27 @@ def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
         return None
 
     cumulative_volume = 0
+    volume_window_start: datetime | None = None
     bars = conn.execute(
-        "SELECT ts, close, volume FROM bars WHERE symbol = ? AND ts >= ? AND ts < ? ORDER BY ts",
-        (symbol, config.iso(config.MARKET_OPEN), config.iso(config.MARKET_CLOSE)),
+        "SELECT ts, close, volume FROM bars WHERE symbol = ? AND ts >= ? AND ts <= ? ORDER BY ts",
+        (symbol, config.iso(config.PREMARKET_OPEN), config.iso(config.SCANNER_CLOSE)),
     )
     for bar in bars:
         at = datetime.fromisoformat(bar["ts"])
+        if at < config.MARKET_OPEN:
+            session_start = config.PREMARKET_OPEN
+        elif at < config.MARKET_CLOSE:
+            session_start = config.MARKET_OPEN
+        else:
+            session_start = config.MARKET_CLOSE
+        if session_start != volume_window_start:
+            cumulative_volume = 0
+            volume_window_start = session_start
         cumulative_volume += bar["volume"]
-        elapsed_minutes = min(390, max(1, int((at - config.MARKET_OPEN).total_seconds() // 60) + 1))
+        # Daily bars do not provide historical extended-hours profiles. Use the
+        # regular-session per-minute baseline within each market session, and
+        # reset at 9:30 and 4:00 so pre-market volume cannot inflate regular-hours RVOL.
+        elapsed_minutes = min(390, max(1, int((at - session_start).total_seconds() // 60) + 1))
         expected_volume = average_daily_volume * elapsed_minutes / 390
         relative_volume = cumulative_volume / expected_volume if expected_volume else 0.0
         change_pct = (bar["close"] / previous_close - 1) * 100

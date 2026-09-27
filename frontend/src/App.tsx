@@ -5,9 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiRequestError, apiRequest } from "./api/client";
 import { submitSignedTrade } from "./api/trade";
-import type { Alert, FaucetResponse, Portfolio, PriceQuote, ReplayState, TradeQuote, TransactionRow } from "./api/types";
+import type { Alert, FaucetResponse, Portfolio, PriceBar, PriceQuote, ReplayState, TradeQuote, TransactionRow } from "./api/types";
 import { EquityChart } from "./components/EquityChart";
 import { StatCard } from "./components/StatCard";
+import { StockChart } from "./components/StockChart";
 import { TransactionTable } from "./components/TransactionTable";
 
 const EMPTY_PORTFOLIO: Portfolio = {
@@ -31,6 +32,20 @@ function marketTime(value?: string) {
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }).format(new Date(value));
 }
 
+function marketSession(value?: string) {
+  if (!value) return "Loading session";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/New_York",
+  }).formatToParts(new Date(value));
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  const minutes = hour * 60 + minute;
+  if (minutes < 9 * 60 + 30) return "Pre-market";
+  if (minutes < 16 * 60) return "Regular market";
+  if (minutes <= 16 * 60 + 15) return "Post-market";
+  return "Market closed";
+}
+
 function decodeBase64(value: string) {
   return Uint8Array.from(window.atob(value), (character) => character.charCodeAt(0));
 }
@@ -48,6 +63,8 @@ export default function App() {
   const [replay, setReplay] = useState<ReplayState | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [prices, setPrices] = useState<PriceQuote[]>([]);
+  const [chart, setChart] = useState<{ symbol: string; bars: PriceBar[] } | null>(null);
+  const [chartError, setChartError] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<Portfolio>(EMPTY_PORTFOLIO);
   const [portfolioWallet, setPortfolioWallet] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
@@ -82,6 +99,19 @@ export default function App() {
     const timer = window.setInterval(() => void loadMarket(true), 2_000);
     return () => window.clearInterval(timer);
   }, [loadMarket]);
+
+  useEffect(() => {
+    if (view !== "scanner" || !replay) return;
+    const controller = new AbortController();
+    setChartError(null);
+    void apiRequest<PriceBar[]>(`/prices/${encodeURIComponent(selectedSymbol)}/history`, { signal: controller.signal })
+      .then((bars) => setChart({ symbol: selectedSymbol, bars }))
+      .catch((requestError: unknown) => {
+        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        setChartError(requestError instanceof Error ? requestError.message : "Could not load the price chart.");
+      });
+    return () => controller.abort();
+  }, [replay, selectedSymbol, view]);
 
   const loadPortfolio = useCallback(async () => {
     if (!wallet) { setPortfolio(EMPTY_PORTFOLIO); setTransactions([]); setPortfolioWallet(null); return; }
@@ -247,9 +277,9 @@ export default function App() {
 
       {view === "scanner" ? <>
         <section className="hero">
-          <div><p className="eyebrow">Alpaca SIP market replay</p><h1>Trade the signal.<br />Understand the move.</h1><p className="lede">Large-cap momentum alerts backed by real Friday prices, relative volume, and company news.</p><div className="rule-pills"><span>≥ 3% move</span><span>≥ 2× RVOL</span><span>News ≤ 24h</span></div></div>
+          <div><p className="eyebrow">Alpaca SIP market replay</p><h1>Trade the signal.<br />Understand the move.</h1><p className="lede">Large-cap momentum alerts backed by real Friday prices from pre-market through 4:15 PM ET, relative volume, and company news.</p><div className="rule-pills"><span>4:00 AM–4:15 PM ET</span><span>≥ 3% move</span><span>≥ 2× RVOL</span><span>News ≤ 24h</span></div></div>
           <div className="replay-card">
-            <div><span className={replay?.running ? "live-dot running" : "live-dot"} /> {replay?.running ? "Replay running" : "Replay paused"}</div>
+            <div><span className={replay?.running ? "live-dot running" : "live-dot"} /> {replay?.running ? "Replay running" : "Replay paused"}<span className="session-badge">{marketSession(replay?.sim_time)}</span></div>
             <strong>{marketTime(replay?.sim_time)} ET</strong>
             <div className="replay-meta"><span>Friday, Sep 25</span><span>{replay?.speed ?? 30}× speed</span></div>
             <label className="speed-control">Replay speed<select value={replay?.speed ?? 30} disabled={working} onChange={(event) => void controlReplay(replay?.running ? "start" : "pause", Number(event.target.value))}><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option></select></label>
@@ -281,6 +311,14 @@ export default function App() {
             <button className="primary" disabled={vaultAction != null || !canTrade} onClick={() => void submitTrade()}>{tradeButtonLabel()}</button>
             <small className="disclaimer">Market data is real. Trades will use devnet test tokens with no monetary value.</small>
           </aside>
+        </section>
+
+        <section className="panel stock-chart-panel" aria-label={`${selectedSymbol} trading chart`}>
+          <div className="panel-heading stock-chart-heading">
+            <div><p className="eyebrow">Underlying market chart</p><h2>{selectedSymbol} <span>→ {selectedSymbol}x-demo</span></h2></div>
+            <div className="chart-current"><strong>{selectedPrice ? money(selectedPrice.price) : "—"}</strong><small className={selectedPrice && selectedPrice.change_pct < 0 ? "negative" : "positive"}>{selectedPrice ? signed(selectedPrice.change_pct, "% vs. close") : "Waiting for price"}</small></div>
+          </div>
+          <StockChart symbol={selectedSymbol} bars={chart?.symbol === selectedSymbol ? chart.bars : []} loading={chart?.symbol !== selectedSymbol && chartError == null} error={chartError} />
         </section>
 
         <section className="market-strip" aria-label="Replay market prices">

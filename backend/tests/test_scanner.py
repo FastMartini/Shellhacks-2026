@@ -54,6 +54,37 @@ def test_all_rules_must_pass():
     assert scanner.rebuild_alerts(conn, ["MSFT"]) == 0  # low price change
 
 
+def test_scans_premarket_and_resets_volume_at_regular_open():
+    conn = scanner_db()
+    conn.execute("DELETE FROM bars")
+    conn.executemany(
+        "INSERT INTO bars VALUES ('MSFT', ?, 100, 105, 100, ?, ?)",
+        [
+            (config.iso(et(4, 0)), 104.0, 2_000),
+            (config.iso(et(9, 30)), 104.0, 2_000),
+        ],
+    )
+    add_news(conn, et(3, 50))
+
+    assert scanner.rebuild_alerts(conn, ["MSFT"]) == 1
+    alert = scanner.visible_alerts(et(4, 0), conn)[0]
+    assert alert["time"] == config.iso(et(4, 0))
+    assert alert["rvol"] == 2.0
+
+
+def test_scans_through_415_postmarket():
+    conn = scanner_db()
+    conn.execute("DELETE FROM bars")
+    conn.execute(
+        "INSERT INTO bars VALUES ('MSFT', ?, 100, 105, 100, 104, 32000)",
+        (config.iso(et(16, 15)),),
+    )
+    add_news(conn, et(15, 50))
+
+    assert scanner.rebuild_alerts(conn, ["MSFT"]) == 1
+    assert scanner.visible_alerts(config.SCANNER_CLOSE, conn)[0]["time"] == config.iso(et(16, 15))
+
+
 def test_generic_future_and_old_news_do_not_qualify():
     conn = scanner_db()
     add_news(conn, et(9, 20), "Friday pre-market movers: top gainers and losers")

@@ -1,6 +1,7 @@
 export interface ApiError { error: string; message: string }
 export interface ReplayState { mode: string; sim_time: string; speed: number; running: boolean }
 export interface PriceQuote { symbol: string; price: number; prev_close: number; change_pct: number; sim_time: string }
+export interface PriceBar { time: string; open: number; high: number; low: number; close: number; volume: number }
 export interface Alert { id: string; symbol: string; time: string; price: number; change_pct: number; rvol: number; rules_passed: string[]; headline: string | null; headline_url: string | null }
 export interface FaucetResponse { signature: string; usd_amount: number }
 export interface TradeQuote { quote_id: string; symbol: string; side: "buy" | "sell"; price: number; qty: number; usd_amount: number; sim_time: string; expires_in_s: number; tx_base64: string }

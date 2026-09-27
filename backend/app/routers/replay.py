@@ -58,9 +58,17 @@ def all_prices():
     return [prices.quote(s, t) for s in config.SYMBOLS]
 
 
+@router.get("/prices/{symbol}/history")
+def price_history(symbol: str):
+    symbol = symbol.upper()
+    if symbol not in config.SYMBOLS:
+        raise ApiError(404, "unknown_symbol", f"{symbol} isn't one of the {len(config.SYMBOLS)} supported stocks")
+    return prices.history(symbol, clock.sim_time)
+
+
 @router.get("/prices/{symbol}")
 def one_price(symbol: str):
     symbol = symbol.upper()
     if symbol not in config.SYMBOLS:
-        raise ApiError(404, "unknown_symbol", f"{symbol} isn't one of the 19 supported stocks")
+        raise ApiError(404, "unknown_symbol", f"{symbol} isn't one of the {len(config.SYMBOLS)} supported stocks")
     return prices.quote(symbol, clock.sim_time)

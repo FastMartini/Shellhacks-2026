@@ -22,7 +22,7 @@ The demo follows Sofía in Argentina: she moves pesos into digital dollars to es
 | --- | --- |
 | Must | Phantom connect, demo-dollars button, buy/sell through the vault, transaction log, total profit/loss |
 | Should | Friday replay scanner feed, click an alert to pre-fill the trade ticket, demo reset |
-| Nice | Account-value chart, average win vs. average loss, trade count |
+| Nice | Account-value chart, per-stock Alpaca trading charts, average win vs. average loss, trade count |
 | Stretch | Live Jupiter quote on a real xStock as price proof (needs a free API key from portal.jup.ag), eligible-country badge, token names and logos in Phantom |
 
 **Out of scope:** AI features, backtesting on price history, short selling, email login, hosting online.
@@ -38,7 +38,7 @@ One FastAPI backend and one React app, running on one laptop, talking to Solana 
 | Scanner service | Diego | Python | Reads bars from the replay clock and emits alerts; rules live in a config file |
 | Vault | Matthew | Python, `solana` 0.40.x / `solders` | Builds unsigned swaps, co-signs after Phantom, submits, pays fees, mints/burns mock tokens |
 | Trade log + stats | Khalil | Python / FastAPI, SQLite | Ledger of deposits and trades, average cost, portfolio stats |
-| Front-end | Diego (Justin helps) | React + Vite, Solana wallet adapter | Scanner feed, trade ticket, transaction log, stats + chart, replay controls |
+| Front-end | Diego (Justin helps) | React + Vite, Solana wallet adapter | Scanner feed, per-stock price/volume charts, trade ticket, transaction log, stats + chart, replay controls |
 | Setup | Justin | Python, `scripts/setup_devnet.py` | Created the dUSD mint, 19 stock mints, vault wallet, `mints.json` (done) |
 
 **Flow:** replay clock → scanner → alert card → trade ticket → vault builds an unsigned swap → Sofía signs in Phantom → backend co-signs, submits and confirms → ledger → stats page.
@@ -75,13 +75,14 @@ Agree on these shapes in the first hour. Every endpoint ships first as a stub re
 | POST | `/replay/next-alert` | seeks to the next alert's time and pauses → state |
 | GET | `/prices` | `[{symbol, price, prev_close, change_pct, sim_time}]` for all 19 |
 | GET | `/prices/{symbol}` | one of the above |
+| GET | `/prices/{symbol}/history` | Alpaca minute bars reached by the replay clock: `[{time, open, high, low, close, volume}]` |
 
 Python code inside the backend calls these instead of HTTP:
 
 - `price_at(symbol, sim_time) -> float`: close of the last bar at or before `sim_time`. Before the first bar of the day it returns the previous session's close; after the last bar it returns the last close.
 - `volume_since(symbol, start, sim_time) -> int`: summed bar volume, for the relative-volume rule.
 
-The clock starts **paused at 9:25 AM** and stops itself at 4:00 PM. Seeking backwards is for rehearsal only, after `/demo/reset`.
+The clock starts **paused at 9:25 AM** for the seeded demo and stops itself at 4:15 PM. It may seek as early as 4:00 AM so the scanner chart can inspect pre-market data. Seeking backwards is for rehearsal only, after `/demo/reset`.
 
 ### 2. Alerts (Diego)
 
@@ -160,11 +161,11 @@ The placeholders add up: deposit $1,000; AKAM $300 buy then sell (+$11.25); TSLA
 
 ## Scanner
 
-The scanner replays Friday Sept 25, 2026 and fires 3 alerts on the real bars: AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM. The thresholds live in `backend/app/config.py`.
+The scanner evaluates real Alpaca bars from 4:00 AM through 4:15 PM ET, covering pre-market, the regular session, and the first 15 post-close minutes. On Friday Sept 25, 2026 it still fires 3 alerts: AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM. The thresholds live in `backend/app/config.py`.
 
 | Rule | Reference scanner | This build |
 | --- | --- | --- |
-| Relative volume | ≥ 5 | ≥ 2: `volume_since(open)` ÷ (20-day average daily volume × share of the session elapsed) |
+| Relative volume | ≥ 5 | ≥ 2: session volume ÷ (20-day average daily volume × share of a 390-minute baseline elapsed); volume resets at 9:30 AM and 4:00 PM so extended-hours volume does not inflate the next session |
 | Price move | Up ≥ 10% | Up ≥ 3% from the previous close |
 | News catalyst | Within 24 h | Finnhub company news published in the 24 h **before** the alert time, same headline filter as the reference |
 | Price range | $2–$20 | Dropped (tokens are fractional) |
@@ -187,7 +188,9 @@ All rules must pass for an alert. Long only. One alert per stock per day.
 
 **Replay data:** Alpaca free tier, 1-minute bars with **`feed=sip`** (the full market; free as long as the query ends at least 15 minutes ago), Friday 4:00 AM–8:00 PM ET, plus 20 prior days of daily bars for the volume baseline. Download once into SQLite; carry the last price forward over any empty minute.
 
-**Replay controls:** starts paused at 9:25 AM; start/pause; speed picker (1×, 10×, 30×, 60×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 9:25 AM while the wallet has no deposits; the clock stops at 4:00 PM.
+**Scanner chart:** selecting an alert or tracked symbol opens its underlying stock's Alpaca SIP price/volume chart and labels the corresponding `x-demo` token. The chart supports 1-hour, 4-hour and full-session views, never shows bars ahead of the replay clock, and distinguishes pre-market, regular and post-market sessions.
+
+**Replay controls:** starts paused at 9:25 AM; start/pause; speed picker (1×, 10×, 30×, 60×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 9:25 AM while the wallet has no deposits; the clock stops at 4:15 PM.
 
 ## Vault
 
