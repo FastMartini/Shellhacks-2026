@@ -2,7 +2,7 @@
 
 What's left before the Sunday 10:30 AM submission, in the order it has to happen. Scope and contracts live in [`BUILD_SPEC.md`](BUILD_SPEC.md); this file only tracks who is doing what next.
 
-Last updated: Sat Sept 26, 11:43 PM ET. **Next checkpoint: 10:30 PM**, when the must-have loop works end to end (connect → demo dollars → buy → sell → log → total P/L).
+Last updated: Sun Sept 27, 12:40 AM ET. **Next checkpoint: 10:30 PM**, when the must-have loop works end to end (connect → demo dollars → buy → sell → log → total P/L).
 
 **How to use it**
 
@@ -26,7 +26,8 @@ Last updated: Sat Sept 26, 11:43 PM ET. **Next checkpoint: 10:30 PM**, when the 
 
 ## Nice tier (only after the 10:30 PM checkpoint passes)
 
-- [ ] **Anyone** · Review the hero arrow design in #23. The loop mechanism works; the look is unreviewed. Every knob is a named constant at the top of `MomentumScene.tsx` — pull the branch, change numbers, say what reads better.
+- [ ] **Anyone** · Pick the hero arrow weight on a real screen. #23 ships Round 4a ("bold") from the Claude Design project; 4b ("heavy") is one word away: set `ARROW` to `ARROW_PRESETS.heavy` in `MomentumArrow.tsx`.
+- [ ] **Diego** · Decide whether the dashboard and scanner adopt the landing's look (Geist type, glass pill topbar). The design only covered the landing, so clicking through to the dashboard switches back to DM Sans and the old topbar.
 - [ ] **Diego, Justin** · Show average win vs. average loss on the dashboard. `/portfolio` already returns `stats.avg_win` and `stats.avg_loss`; the UI shows only win and loss counts. Khalil's 1:40 demo line needs these.
 
 ## Demo, pitch and submission (Sunday)
@@ -61,6 +62,7 @@ Last updated: Sat Sept 26, 11:43 PM ET. **Next checkpoint: 10:30 PM**, when the 
 
 | When (ET) | What | PR |
 | --- | --- | --- |
+| Sun 12:40 AM | Landing hero restyled to the reviewed design (Round 4a): platinum coins, bold zigzag arrow, glass topbar, proof row removed; the arrow and coins now shrink as one group on phones | #23 |
 | Sat 11:43 PM | Landing hero: animated momentum scene, lazy-loaded, with a reduced-motion and no-WebGL fallback | #23 |
 | Sat 8:27 PM | Scanner fires 3 alerts on the real bars (AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM); dashboard, scanner feed, replay controls | #11 |
 | Sat 8:02 PM | Vault test run lands on devnet (Phantom's warning is expected); devnet setup script, 20 mints in `mints.json` | #9 |
