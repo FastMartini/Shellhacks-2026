@@ -2,7 +2,7 @@
 
 What's left before the Sunday 10:30 AM submission, in the order it has to happen. Scope and contracts live in [`BUILD_SPEC.md`](BUILD_SPEC.md); this file only tracks who is doing what next.
 
-Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the must-have loop works end to end (connect → demo dollars → buy → sell → log → total P/L).
+Last updated: Sat Sept 26, 9:34 PM ET. **Next checkpoint: 10:30 PM**, when the must-have loop works end to end (connect → demo dollars → buy → sell → log → total P/L).
 
 **How to use it**
 
@@ -15,9 +15,9 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 
 - [ ] **Matthew** · Merge #13 (real `/faucet`, `/trade/quote`, `/trade/submit`, `seed_demo.py`). Diego approved it; it's 8 commits behind `main`, so merge `main` in and rerun `pytest` first.
 - [ ] **Diego** · Open a PR for `fix/ui-changes` (Get demo dollars, quote → Phantom signs → submit, re-quote on `quote_expired`). Merge `main` in after #13 lands.
+- [ ] **Diego** · In the ticket, answer `502 chain_unavailable` from `/trade/submit` by submitting the same quote again; re-quote only on `quote_expired` or `tx_failed` (#17, spec section 3).
 - [ ] **Justin** · Add `SOLANA_RPC_URL` (Helius devnet URL) and `VAULT_KEYPAIR` to `backend/.env.example`. Everyone puts the Helius URL in `backend/.env`, and in `frontend/.env` as `VITE_SOLANA_RPC_URL`.
 - [ ] **Everyone** · Run the loop on devnet with Phantom (Testnet Mode on): connect → Get demo dollars → buy → click "Confirm (unsafe)" → sell → the log row has an explorer link → total P/L updates.
-- [ ] **Matthew** · Add #13's error codes to the vault contract in the spec, both copies (see [Changing a contract](../CONTRIBUTING.md#changing-a-contract)). The ticket shows these messages.
 
 ## Should tier (after the loop works)
 
@@ -49,6 +49,7 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 - `seed_demo.py` seeds MSTR (win), AKAM (loss) and NVDA (held), all between 6:03 and 9:10 AM, before any alert fires. MSTR and NVDA never alert. Is that the story we want on the stats page, or should the seeded trades follow alerts?
 - The seeded log ends at −$7.07 total P/L (dry run). Does the live trade's gain turn that positive?
 - Is xStocks available in Argentina, Ukraine and Nigeria? Unverified, so don't claim it in the pitch or on Devpost.
+- Quote checks read only on-chain balances, but the ledger is the source of truth. After a bare `/demo/reset`, `sell_all` sells leftover shares as a fake win, and a buy can take ledger cash negative. Check the ledger too, or make "reset means rerun `seed_demo.py`" the rule? (#13 review)
 
 ## Cut
 
@@ -58,6 +59,7 @@ Last updated: Sat Sept 26, 9:00 PM ET. **Next checkpoint: 10:30 PM**, when the m
 
 | When (ET) | What | PR |
 | --- | --- | --- |
+| Sat 9:34 PM | Vault error codes in the spec (both copies); a lost reply or dropped connection mid-trade no longer loses or doubles a trade | #17 |
 | Sat 8:27 PM | Scanner fires 3 alerts on the real bars (AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM); dashboard, scanner feed, replay controls | #11 |
 | Sat 8:02 PM | Vault test run lands on devnet (Phantom's warning is expected); devnet setup script, 20 mints in `mints.json` | #9 |
 | Sat 6:46 PM | Replay data loader: Alpaca SIP minute bars, 20 daily baselines, Finnhub news | #8 |
