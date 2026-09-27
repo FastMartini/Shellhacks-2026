@@ -50,6 +50,7 @@ class FakeRpc:
         self.drop_send_reply = False  # the transaction lands but the reply is lost
         self.drop_confirms = 0        # confirm calls that lose the connection first
         self.err = None            # on-chain error the confirmed status carries
+        self.statuses: dict = {}   # signature → its on-chain error (None = succeeded), for every transaction that landed
 
     async def __aenter__(self):
         return self
@@ -73,8 +74,10 @@ class FakeRpc:
         tx = Transaction.from_bytes(raw)
         tx.verify()
         self.sent.append(tx)
-        if self.err is None and self.fail_confirm is None:  # a failed or expired transaction changes nothing
-            self._apply(tx)
+        if self.fail_confirm is None:  # an expired transaction never landed
+            self.statuses[tx.signatures[0]] = self.err
+            if self.err is None:       # a failed one landed but changed nothing
+                self._apply(tx)
         if self.drop_send_reply:
             raise network_error()
         return SimpleNamespace(value=tx.signatures[0])
@@ -86,6 +89,10 @@ class FakeRpc:
         if self.fail_confirm:
             raise self.fail_confirm
         return SimpleNamespace(value=[SimpleNamespace(err=self.err)])
+
+    async def get_signature_statuses(self, sigs, search_transaction_history=False):
+        return SimpleNamespace(value=[SimpleNamespace(err=self.statuses[s]) if s in self.statuses else None
+                                      for s in sigs])
 
     def _apply(self, tx):
         """Burn (SPL instruction 8) and MintTo (7): amount is a u64 after the 1-byte tag."""

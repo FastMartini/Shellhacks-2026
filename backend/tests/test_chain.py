@@ -1,9 +1,12 @@
 """Vault transaction shape and signing order, offline: no RPC calls reach the network."""
 
 import asyncio
+import json
 import os
 
+import httpx2
 import pytest
+from solana.rpc.core import RPCException
 from solders.hash import Hash
 from solders.keypair import Keypair
 from solders.signature import Signature
@@ -86,6 +89,64 @@ def test_cosign_refuses_when_she_has_not_signed():
     with pytest.raises(TransactionError):
         asyncio.run(chain.cosign_and_send(rpc, VAULT, chain.unsigned_tx(msg), msg))
     assert rpc.sent is None
+
+
+def over_http(on_send, landed):
+    """chain.client() with only its HTTP transport faked, so solana-py's own retry still runs.
+    on_send(n, request, reply) answers the n-th sendTransaction; the signature has a confirmed status if `landed`."""
+    calls = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        calls.append(body["method"])
+
+        def reply(**result_or_error):
+            return httpx2.Response(200, json={"jsonrpc": "2.0", "id": body["id"], **result_or_error})
+
+        if body["method"] == "sendTransaction":
+            return on_send(calls.count("sendTransaction"), request, reply)
+        if body["method"] == "getBlockHeight":
+            return reply(result=100)
+        status = {"slot": 1, "confirmations": None, "err": None, "status": {"Ok": None}, "confirmationStatus": "confirmed"}
+        return reply(result={"context": {"slot": 1}, "value": [status if landed else None]})
+
+    rpc = chain.client()
+    rpc._provider.session = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    return rpc, calls
+
+
+def preflight_error(err, message):
+    return {"code": -32002, "message": f"Transaction simulation failed: {message}",
+            "data": {"accounts": None, "err": err, "innerInstructions": None, "loadedAccountsDataSize": 0,
+                     "logs": [], "replacementBlockhash": None, "returnData": None, "unitsConsumed": 0}}
+
+
+async def cosign_over(rpc, msg):
+    async with rpc:
+        return await chain.cosign_and_send(rpc, VAULT, signed_by_sofia(msg), msg, last_valid_block_height=200)
+
+
+def test_a_resend_that_finds_the_trade_already_landed_confirms_it():
+    # The first send landed but its reply was lost, so solana-py sent the same bytes again, and devnet refused that
+    # copy as already processed. The trade happened: confirm it rather than report it as failed.
+    def on_send(n, request, reply):
+        if n == 1:
+            raise httpx2.ReadTimeout("reply lost", request=request)
+        return reply(error=preflight_error("AlreadyProcessed", "This transaction has already been processed"))
+
+    rpc, calls = over_http(on_send, landed=True)
+    msg = buy_message()
+    assert asyncio.run(cosign_over(rpc, msg)) == VAULT.sign_message(bytes(msg))  # the fee payer's signature
+    assert calls[:3] == ["sendTransaction", "sendTransaction", "getSignatureStatuses"]
+
+
+def test_a_send_devnet_rejects_still_fails():
+    def on_send(n, request, reply):
+        return reply(error=preflight_error("BlockhashNotFound", "Blockhash not found"))
+
+    rpc, _ = over_http(on_send, landed=False)
+    with pytest.raises(RPCException):
+        asyncio.run(cosign_over(rpc, buy_message()))
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")

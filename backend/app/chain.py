@@ -12,6 +12,7 @@ from pathlib import Path
 from solana.exceptions import SolanaRpcException
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
+from solana.rpc.core import RPCException
 from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
 from solders.hash import Hash
 from solders.keypair import Keypair
@@ -123,13 +124,19 @@ async def send_and_confirm(rpc: AsyncClient, tx: Transaction, last_valid_block_h
 
     The signature is known before sending, so a network error on the send doesn't lose a transaction that
     reached the cluster: with a blockhash expiry to wait for, it keeps checking that signature until the
-    transaction confirms, fails, or can no longer land. Never resends, so it can't trade twice.
+    transaction confirms, fails, or can no longer land. The same bytes can only land once, so it can't trade twice,
+    even though solana-py resends a request whose reply was lost.
     """
     sig = tx.signatures[0]
     try:
         await rpc.send_raw_transaction(bytes(tx))
     except SolanaRpcException:
         if last_valid_block_height is None:  # nothing bounds the wait, so don't guess
+            raise
+    except RPCException:
+        # If solana-py's resend follows a copy that landed, devnet refuses it as already processed. Only a
+        # signature devnet has never seen is a real rejection.
+        if (await rpc.get_signature_statuses([sig])).value[0] is None:
             raise
     await confirm(rpc, sig, last_valid_block_height)
     return sig
