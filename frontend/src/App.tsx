@@ -124,7 +124,7 @@ export default function App() {
     } finally { setWorking(false); }
   }
 
-  const canResetTimer = replay != null && new Date(replay.sim_time).getTime() > REPLAY_START_MS;
+  const canResetTimer = replay != null && portfolio.deposited === 0 && new Date(replay.sim_time).getTime() > REPLAY_START_MS;
 
   return (
     <main>
@@ -148,7 +148,7 @@ export default function App() {
             <strong>{marketTime(replay?.sim_time)} ET</strong>
             <div className="replay-meta"><span>Friday, Sep 25</span><span>{replay?.speed ?? 30}× speed</span></div>
             <label className="speed-control">Replay speed<select value={replay?.speed ?? 30} disabled={working} onChange={(event) => void controlReplay(replay?.running ? "start" : "pause", Number(event.target.value))}><option value="1">1×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option></select></label>
-            <div className="replay-actions"><button className="reset-button" title="Return the replay clock to 9:25 AM without clearing trades" disabled={working || loading || !canResetTimer} onClick={() => void resetReplayTimer()}>↺ Reset timer</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
+            <div className="replay-actions"><button className="reset-button" title={portfolio.deposited > 0 ? "Reset is unavailable after demo dollars are deposited" : "Return the replay clock to 9:25 AM"} disabled={working || loading || !canResetTimer} onClick={() => void resetReplayTimer()}>↺ Reset timer</button><button className="play-button" disabled={working || loading} onClick={() => void controlReplay(replay?.running ? "pause" : "start")}>{working ? "Updating…" : replay?.running ? "Pause replay" : "Start replay"}</button></div>
           </div>
         </section>
 
@@ -159,7 +159,7 @@ export default function App() {
             <div className="alert-list">
               {loading ? <div className="empty-state">Loading scanner…</div> : visibleAlerts.length === 0 ? <div className="empty-state"><b>No alerts revealed yet</b><span>Start the replay or jump directly to the first signal.</span></div> : visibleAlerts.map((alert) => (
                 <button className={`alert-row ${selectedSymbol === alert.symbol ? "selected" : ""}`} key={alert.id} onClick={() => setSelectedSymbol(alert.symbol)}>
-                  <span className="ticker">{alert.symbol}<small>{alert.token_symbol}</small></span><span><b>{signed(alert.change_pct, "%")}</b><small>Price move</small></span><span><b>{alert.rvol.toFixed(1)}×</b><small>Rel. volume</small></span><time>{marketTime(alert.time)}</time>
+                  <span className="ticker">{alert.symbol}<small>{alert.symbol}x-demo</small></span><span><b>{signed(alert.change_pct, "%")}</b><small>Price move</small></span><span><b>{alert.rvol.toFixed(1)}×</b><small>Rel. volume</small></span><time>{marketTime(alert.time)}</time>
                 </button>
               ))}
             </div>
@@ -168,7 +168,7 @@ export default function App() {
 
           <aside className="panel trade-panel">
             <p className="eyebrow">Trade ticket preview</p>
-            <div className="ticket-title"><div><h2>{selectedSymbol}</h2><small>{selectedAlert?.token_symbol ?? `${selectedSymbol}x-demo`}</small></div><span>{selectedPrice ? money(selectedPrice.price) : "—"}</span></div>
+            <div className="ticket-title"><div><h2>{selectedSymbol}</h2><small>{selectedSymbol}x-demo</small></div><span>{selectedPrice ? money(selectedPrice.price) : "—"}</span></div>
             <div className={selectedPrice && selectedPrice.change_pct < 0 ? "price-change negative" : "price-change"}>{selectedPrice ? `${signed(selectedPrice.change_pct, "%")} vs. previous close` : "Waiting for price"}</div>
             <div className="segmented"><button className={side === "buy" ? "active" : ""} onClick={() => setSide("buy")}>Buy</button><button className={side === "sell" ? "active sell" : ""} onClick={() => setSide("sell")}>Sell</button></div>
             <label>Amount in dUSD<input inputMode="decimal" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" /></label>
@@ -189,7 +189,7 @@ export default function App() {
         </section>
         <section className="stats-grid">
           <StatCard label="Portfolio value" value={money(portfolio.total_value)} detail={connected ? "Connected account" : "Connect Phantom to load"} />
-          <StatCard label="Total return" value={`${portfolio.stats.total_pl >= 0 ? "+" : ""}${money(portfolio.stats.total_pl)}`} detail={signed(portfolio.stats.total_pl_pct, "% all time")} positive={portfolio.stats.total_pl >= 0} />
+          <StatCard label="Total return" value={`${portfolio.stats.total_pl >= 0 ? "+" : ""}${money(portfolio.stats.total_pl)}`} detail={signed(portfolio.stats.total_pl_pct, "% all time")} tone={portfolio.stats.total_pl > 0 ? "positive" : portfolio.stats.total_pl < 0 ? "negative" : undefined} />
           <StatCard label="Available cash" value={money(portfolio.cash)} detail="dUSD balance" />
           <StatCard label="Trades" value={String(portfolio.stats.trade_count)} detail={`${portfolio.stats.win_count} wins · ${portfolio.stats.loss_count} losses`} />
         </section>

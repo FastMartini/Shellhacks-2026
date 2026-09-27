@@ -21,12 +21,23 @@ SYMBOLS = [
     "NVDA", "PLTR", "QQQ", "SPY", "TSLA", "AKAM", "DDOG", "INTC", "ZS",
 ]
 
-# Scanner rules for large-cap stocks. Real equities provide the market signal;
-# the corresponding devnet tokens are used only for simulated execution.
-TOKEN_SYMBOLS = {symbol: f"{symbol}x-demo" for symbol in SYMBOLS}
+# Scanner rules for large-cap stocks.
 MIN_CHANGE_PCT = 3.0
 MIN_RVOL = 2.0
 NEWS_LOOKBACK_HOURS = 24
+
+# Prefer a catalyst that names the company represented by the stock. Short
+# tickers such as ZS are intentionally omitted because substring matching them
+# would produce false positives.
+NEWS_IDENTITY_TERMS = {
+    "AAPL": ("apple",), "AMD": ("advanced micro devices", "amd"),
+    "AMZN": ("amazon",), "COIN": ("coinbase",), "GOOGL": ("alphabet", "google"),
+    "HOOD": ("robinhood",), "META": ("meta", "facebook"), "MSFT": ("microsoft", "copilot"),
+    "MSTR": ("microstrategy", "strategy inc"), "NFLX": ("netflix",), "NVDA": ("nvidia",),
+    "PLTR": ("palantir",), "QQQ": ("nasdaq 100",), "SPY": ("s p 500",),
+    "TSLA": ("tesla",), "AKAM": ("akamai",), "DDOG": ("datadog",),
+    "INTC": ("intel",), "ZS": ("zscaler",),
+}
 
 # 1 token = 1,000,000 base units, for both dUSD and stock tokens.
 UNITS = 1_000_000

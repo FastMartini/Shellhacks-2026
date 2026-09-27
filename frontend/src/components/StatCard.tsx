@@ -1,5 +1,5 @@
-interface StatCardProps { label: string; value: string; detail: string; positive?: boolean }
+interface StatCardProps { label: string; value: string; detail: string; tone?: "positive" | "negative" }
 
-export function StatCard({ label, value, detail, positive }: StatCardProps) {
-  return <article className="stat-card"><span>{label}</span><strong className={positive ? "positive" : undefined}>{value}</strong><small>{detail}</small></article>;
+export function StatCard({ label, value, detail, tone }: StatCardProps) {
+  return <article className="stat-card"><span>{label}</span><strong className={tone}>{value}</strong><small>{detail}</small></article>;
 }

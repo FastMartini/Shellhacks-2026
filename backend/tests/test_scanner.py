@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta
 
+from fastapi.testclient import TestClient
+
 from app import config, db, scanner
+from app.main import app
+from app.replay import clock
 
 
 def et(hour: int, minute: int) -> datetime:
@@ -35,7 +39,6 @@ def test_large_cap_rules_drop_price_and_float_filters():
     assert scanner.rebuild_alerts(conn, ["MSFT"]) == 1
     alert = scanner.visible_alerts(et(9, 31), conn)[0]
     assert alert["symbol"] == "MSFT"
-    assert alert["token_symbol"] == "MSFTx-demo"
     assert alert["change_pct"] == 4.0
     assert alert["rvol"] == 2.5
     assert alert["rules_passed"] == ["rvol", "change", "news"]
@@ -69,3 +72,33 @@ def test_precomputes_one_alert_but_hides_it_until_replay_reaches_it():
     assert len(scanner.visible_alerts(et(9, 31), conn)) == 1
     assert scanner.rebuild_alerts(conn, ["MSFT"]) == 1
     assert conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0] == 1
+
+
+def test_prefers_a_company_specific_headline_over_newer_unrelated_news():
+    conn = scanner_db()
+    add_news(conn, et(9, 20), "Microsoft unveils unified Copilot for enterprise customers")
+    add_news(conn, et(9, 25), "Nscale raises funding led by Third Point")
+
+    scanner.rebuild_alerts(conn, ["MSFT"])
+
+    assert scanner.visible_alerts(et(9, 31), conn)[0]["headline"].startswith("Microsoft")
+
+
+def test_alerts_http_contract_and_replay_visibility():
+    conn = scanner_db()
+    add_news(conn, et(9, 20))
+    db.use(conn)
+    clock.reset()
+    try:
+        with TestClient(app) as api:
+            assert api.get("/alerts").json() == []
+            state = api.post("/replay/next-alert").json()
+            assert state["sim_time"] == config.iso(et(9, 31))
+            alert = api.get("/alerts").json()[0]
+            assert set(alert) == {
+                "id", "symbol", "time", "price", "change_pct", "rvol",
+                "rules_passed", "headline", "headline_url",
+            }
+    finally:
+        db.use(None)
+        clock.reset()

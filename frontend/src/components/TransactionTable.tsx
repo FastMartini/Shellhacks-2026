@@ -23,11 +23,12 @@ export function TransactionTable({ transactions }: { transactions: TransactionRo
       </div>
       {transactions.length === 0 ? <div className="transaction-empty">Completed buys and sells will appear here after they confirm on Solana devnet.</div> :
         <div className="transaction-table-wrap"><table className="transaction-table">
-          <thead><tr><th>Time</th><th>Side</th><th>Stock</th><th>Shares</th><th>Price</th><th>Value</th><th>Cash before</th><th>Cash after</th><th>P/L</th><th>P/L %</th><th>Outcome</th><th>Held</th><th>Proof</th></tr></thead>
+          <thead><tr><th>Time</th><th>Side</th><th>Stock</th><th>Proof</th><th>Shares</th><th>Price</th><th>Value</th><th>Cash before</th><th>Cash after</th><th>P/L</th><th>P/L %</th><th>Outcome</th><th>Held</th></tr></thead>
           <tbody>{transactions.map((transaction) => <tr key={transaction.id}>
             <td>{replayTime(transaction.sim_time)}</td>
             <td><span className={`transaction-side ${transaction.side}`}>{transaction.side}</span></td>
             <td className="transaction-symbol">{transaction.symbol}</td>
+            <td>{transaction.explorer_url ? <a href={transaction.explorer_url} target="_blank" rel="noreferrer">Explorer ↗</a> : "—"}</td>
             <td>{transaction.qty.toFixed(6)}</td>
             <td>{dollars.format(transaction.price)}</td>
             <td>{dollars.format(transaction.usd_amount)}</td>
@@ -37,7 +38,6 @@ export function TransactionTable({ transactions }: { transactions: TransactionRo
             <td className={transaction.realized_pl_pct == null ? "" : transaction.realized_pl_pct >= 0 ? "positive" : "negative"}>{percent(transaction.realized_pl_pct)}</td>
             <td>{transaction.outcome ?? "—"}</td>
             <td>{transaction.held_min == null ? "—" : `${transaction.held_min} min`}</td>
-            <td>{transaction.explorer_url ? <a href={transaction.explorer_url} target="_blank" rel="noreferrer">Explorer ↗</a> : "—"}</td>
           </tr>)}</tbody>
         </table></div>}
       <p className="transaction-note">Only confirmed transactions are recorded. Symbols are shown exactly as returned by the API.</p>

@@ -6,48 +6,34 @@ without leaking future alerts to the UI.
 """
 
 import json
+import re
 import sqlite3
 from datetime import datetime, timedelta
 
 from . import config, db, prices
 
-# Ported conceptually from the team's reference scanner. These headlines report
-# movement rather than explaining it, so they do not count as a catalyst.
-GENERIC_NEWS_HEADLINE_TERMS = (
-    "top gainers and losers",
-    "top premarket gainers",
-    "top pre-market gainers",
-    "pre-market session",
-    "premarket session",
-    "pre market session",
-    "pre-market movers",
-    "premarket movers",
-    "pre market movers",
-    "after-hours movers",
-    "after hours movers",
-    "morning movers",
-    "midday movers",
-    "market movers",
-    "stock movers",
-    "stocks moving",
-    "biggest stock movers",
-    "biggest premarket stock movers",
-    "biggest pre-market stock movers",
-    "shares are trading higher",
-    "shares are trading lower",
-    "why shares",
-    "why is",
-    "why are",
-    "market update",
-    "watchlist",
+# Movement roundups describe a price change without explaining its cause. A
+# compact set of categories covers spelling variants without copying the
+# reference scanner's term-by-term implementation.
+GENERIC_NEWS_PATTERNS = (
+    re.compile(r"\b(?:top|biggest)\b.*\b(?:gainers|losers|movers)\b"),
+    re.compile(r"\b(?:pre|after)\s*market\s+(?:session|movers)\b"),
+    re.compile(r"\b(?:morning|midday|market|stock)\s+movers\b"),
+    re.compile(r"\bstocks?\s+moving\b"),
+    re.compile(r"\bshares?\s+(?:are\s+)?trading\s+(?:higher|lower)\b"),
+    re.compile(r"\bwhy\s+(?:is|are|shares?)\b"),
+    re.compile(r"\bmarket\s+update\b"),
+    re.compile(r"\bwatchlist\b"),
 )
 
 
 def is_quality_catalyst(headline: str) -> bool:
-    normalized = " ".join(headline.lower().replace("-", " ").split())
-    return bool(normalized) and not any(
-        term.replace("-", " ") in normalized for term in GENERIC_NEWS_HEADLINE_TERMS
-    )
+    normalized = _normalize_headline(headline)
+    return bool(normalized) and not any(pattern.search(normalized) for pattern in GENERIC_NEWS_PATTERNS)
+
+
+def _normalize_headline(headline: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", headline.lower()).split())
 
 
 def _daily_average_volume(conn: sqlite3.Connection, symbol: str) -> float | None:
@@ -71,11 +57,21 @@ def _quality_news(conn: sqlite3.Connection, symbol: str) -> list[sqlite3.Row]:
     ]
 
 
-def _latest_catalyst(rows: list[sqlite3.Row], at: datetime) -> sqlite3.Row | None:
+def _latest_catalyst(rows: list[sqlite3.Row], symbol: str, at: datetime) -> sqlite3.Row | None:
     start = config.iso(at - timedelta(hours=config.NEWS_LOOKBACK_HOURS))
     end = config.iso(at)
     eligible = [row for row in rows if start <= row["published_at"] <= end]
-    return eligible[-1] if eligible else None
+    if not eligible:
+        return None
+    identity_terms = config.NEWS_IDENTITY_TERMS.get(symbol, ())
+    named = [
+        row for row in eligible
+        if any(
+            f" {term} " in f" {_normalize_headline(row['headline'])} "
+            for term in identity_terms
+        )
+    ]
+    return (named or eligible)[-1]
 
 
 def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
@@ -103,7 +99,7 @@ def _first_alert(conn: sqlite3.Connection, symbol: str) -> dict | None:
 
         if change_pct < config.MIN_CHANGE_PCT or relative_volume < config.MIN_RVOL:
             continue
-        catalyst = _latest_catalyst(news_rows, at)
+        catalyst = _latest_catalyst(news_rows, symbol, at)
         if catalyst is None:
             continue
         return {
@@ -153,7 +149,6 @@ def visible_alerts(at: datetime, conn: sqlite3.Connection | None = None) -> list
         {
             "id": row["id"],
             "symbol": row["symbol"],
-            "token_symbol": config.TOKEN_SYMBOLS[row["symbol"]],
             "time": row["ts"],
             "price": row["price"],
             "change_pct": row["change_pct"],

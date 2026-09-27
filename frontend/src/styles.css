@@ -118,7 +118,7 @@ input:focus { border-color: #6cf2a6; }
 .transaction-panel { margin-top: 16px; padding: 0; overflow: hidden; }
 .transaction-panel .panel-heading { padding: 24px 24px 0; }
 .transaction-table-wrap { overflow-x: auto; border-top: 1px solid #ffffff0d; }
-.transaction-table { width: 100%; min-width: 1320px; border-collapse: collapse; }
+.transaction-table { width: 100%; min-width: 1120px; border-collapse: collapse; }
 .transaction-table th { padding: 12px 16px; color: #71837a; background: #09130f; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-align: left; text-transform: uppercase; white-space: nowrap; }
 .transaction-table td { padding: 14px 16px; color: #b8c8c0; border-top: 1px solid #ffffff0a; font-size: 12px; white-space: nowrap; }
 .transaction-table tbody tr:hover { background: #ffffff04; }
