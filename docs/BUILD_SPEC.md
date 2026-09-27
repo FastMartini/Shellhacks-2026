@@ -39,7 +39,7 @@ One FastAPI backend and one React app, running on one laptop, talking to Solana 
 | Vault | Matthew | Python, `solana` 0.40.x / `solders` | Builds unsigned swaps, co-signs after Phantom, submits, pays fees, mints/burns mock tokens |
 | Trade log + stats | Khalil | Python / FastAPI, SQLite | Ledger of deposits and trades, average cost, portfolio stats |
 | Front-end | Diego (Justin helps) | React + Vite, Solana wallet adapter | Scanner feed, trade ticket, transaction log, stats + chart, replay controls |
-| Setup | Justin | `spl-token` CLI + a short script | Creates the dUSD mint, 19 stock mints, vault wallet, `mints.json` |
+| Setup | Justin | Python, `scripts/setup_devnet.py` | Created the dUSD mint, 19 stock mints, vault wallet, `mints.json` (done) |
 
 **Flow:** replay clock → scanner → alert card → trade ticket → vault builds an unsigned swap → Sofía signs in Phantom → backend co-signs, submits and confirms → ledger → stats page.
 
@@ -160,7 +160,7 @@ The placeholders add up: deposit $1,000; AKAM $300 buy then sell (+$11.25); TSLA
 
 ## Scanner
 
-The scanner replays Friday Sept 25, 2026 and should fire 3–6 alerts. Diego keeps the thresholds in a config file and tunes them against the real bars by the 6 PM Saturday checkpoint.
+The scanner replays Friday Sept 25, 2026 and fires 3 alerts on the real bars: AKAM and DDOG at 9:30 AM, MSFT at 9:41 AM. The thresholds live in `backend/app/config.py`.
 
 | Rule | Reference scanner | This build |
 | --- | --- | --- |
@@ -174,7 +174,7 @@ All rules must pass for an alert. Long only. One alert per stock per day.
 
 **Stock list (19, all on xStocks):** AAPL, AMD, AMZN, COIN, GOOGL, HOOD, META, MSFT, MSTR, NFLX, NVDA, PLTR, QQQ, SPY, TSLA, plus Friday's movers AKAM, DDOG, INTC, ZS. Mock mints on devnet use the same tickers with a `-demo` suffix (e.g. `AKAMx-demo`).
 
-**Friday's likely story.** Built from daily data and news timestamps; confirm on the minute bars before scripting the demo.
+**Friday's story.** Built from daily data and news timestamps, then checked on the minute bars: AKAM gapped up and faded.
 
 | Stock | Friday | News and timing |
 | --- | --- | --- |
@@ -183,11 +183,11 @@ All rules must pass for an alert. Long only. One alert per stock per day.
 | DDOG | +4.4% | Wedbush initiated at Outperform |
 | TSLA | Early gain, then ~5% drop from the high | Optimus robot-hand report |
 
-**Demo trades are scripted against the real bars by 6 PM Saturday.** Pick entry and exit minutes where the numbers work. If AKAM only fades, the live trade becomes whichever stock has a clean rise after its alert (MSFT or DDOG), and AKAM becomes the loss.
+**Demo trades are scripted against the real bars.** `seed_demo.py` pre-runs the non-live ones before the open: MSTR bought at 6:03 and sold at 7:22 (+$5.46), AKAM bought at 6:05 and sold at 8:30 (−$12.42), NVDA bought at 9:10 and held. AKAM only fades, so the live trade is whichever of MSFT or DDOG rises cleanly after its alert; its buy and sell minutes are still to pick.
 
 **Replay data:** Alpaca free tier, 1-minute bars with **`feed=sip`** (the full market; free as long as the query ends at least 15 minutes ago), Friday 4:00 AM–8:00 PM ET, plus 20 prior days of daily bars for the volume baseline. Download once into SQLite; carry the last price forward over any empty minute.
 
-**Replay controls:** starts paused at 9:25 AM; start/pause; speed slider (1×–60×, default 30×); "jump to next alert", which pauses there; the clock stops at 4:00 PM.
+**Replay controls:** starts paused at 9:25 AM; start/pause; speed picker (1×, 10×, 30×, 60×; default 30×); "jump to next alert", which pauses there; "Reset timer" back to 9:25 AM while the wallet has no deposits; the clock stops at 4:00 PM.
 
 ## Vault
 
@@ -215,13 +215,13 @@ A blockhash expires in about a minute, so quotes expire after 30 seconds and the
 
 **Test run by 6 PM Saturday (Matthew):** one hard-coded buy of 1 `AKAMx-demo` through this exact path (Phantom signs first, backend co-signs and submits) on devnet. Done Sept 26: the buy lands, but Phantom shows a red "Failed to simulate the results of this request" warning. It also says "You don't have enough SOL" and makes her click "Confirm (unsafe)". The same warning appears when Sofía pays her own fee and on a plain burn she signs alone, so that fallback doesn't help. Devnet's own simulation passes all three. Decision: keep one transaction with the vault paying, and explain the warning in the demo.
 
-**Demo wallet and seed data (Matthew):** make the demo wallet with `solana-keygen` and import its key into Phantom, so `seed_demo.py` can pre-run the scripted non-live trades with the same key. Use `/demo/reset` or a fresh keypair for each rehearsal.
+**Demo wallet and seed data (Matthew):** `scripts/demo_wallet.py` makes the demo wallet (a `solana-keygen`-format key in `backend/keys/`), and `--phantom` prints the key to import into Phantom, so `seed_demo.py` pre-runs the scripted non-live trades with the same key. `seed_demo.py` calls `/demo/reset` and burns her leftover test tokens itself, so rerun it before each rehearsal; `demo_wallet.py --new` makes a fresh keypair.
 
 **Setup checklist (Justin, by 4:45 PM Saturday):**
 
-- [ ] Vault keypair, funded with devnet SOL **first thing**; faucet.solana.com allows 2 requests every 8 hours
-- [ ] dUSD mint + 19 stock mints with the `spl-token` CLI, 6 decimals, vault as mint authority
-- [ ] Mint addresses written to one `mints.json` everyone imports
+- [x] Vault keypair, funded with devnet SOL **first thing**; faucet.solana.com allows 2 requests every 8 hours
+- [x] dUSD mint + 19 stock mints with `scripts/setup_devnet.py`, 6 decimals, vault as mint authority
+- [x] Mint addresses written to one `mints.json` everyone imports
 - [ ] Helius free-tier devnet RPC key in `.env` (about 10 requests per second)
 - [ ] Phantom with **Testnet Mode** on (Settings → Developer Settings) and the demo wallet imported
 
@@ -245,7 +245,7 @@ Everything is computed from the SQLite ledger: every deposit, buy and sell is it
 - **Number of trades** = count of all buys and sells.
 - **Account-value chart** = total value at every replay minute from the first deposit up to `sim_time`, replaying the ledger (at most ~390 points). No snapshot job, no chain reads.
 
-**Transaction log columns:** date · time · side (always Long for now) · stock · shares · price · cash before · cash after · P/L $ · P/L % · outcome · held for · explorer link.
+**Transaction log columns:** date and time · side (buy or sell; long only) · stock · explorer link · shares · price · value · cash before · cash after · P/L $ · P/L % · outcome · held for.
 
 ## Owners and timeline
 
@@ -272,13 +272,13 @@ The critical path runs through Matthew: the bar download and the vault test both
 
 ## Demo script
 
-Three minutes, three speakers, **one live trade**. Before walking up: `/demo/reset`, run `seed_demo.py` so the non-live trades are already in her log, connect the demo wallet, and leave the replay paused at 9:25 AM.
+Three minutes, three speakers, **one live trade**. Before walking up: run `seed_demo.py`, which calls `/demo/reset`, burns leftover test tokens, puts the non-live trades in her log and leaves the replay paused at 9:25 AM. Then connect the demo wallet.
 
 | Time | Speaker | On screen | Say |
 | --- | --- | --- | --- |
 | 0:00–0:20 | Justin | Slide: peso vs. dollar | Sofía in Argentina watched her savings lose value and can't open a US brokerage account |
 | 0:20–0:40 | Khalil | Phantom connected; the button reads "$1,000.00 in demo dollars added" (the seeded 6:00 AM deposit, so no click) | Her pesos become digital dollars. The wallet is her account; no signup |
-| 0:40–1:40 | Diego | Start the replay, jump to the scripted alert (AKAM if the bars allow it), buy, click "Confirm (unsafe)" on Phantom's red warning, jump ahead, sell the same way. Open Solana Explorer | The scanner flags momentum with a real catalyst. Phantom warns because it can't simulate our devnet test tokens; we pay the fee, so she needs no SOL. The trade confirmed in about a second, and the fee is a fraction of a cent |
+| 0:40–1:40 | Diego | Start the replay, jump to the scripted alert (MSFT or DDOG; AKAM is the seeded loss), buy, click "Confirm (unsafe)" on Phantom's red warning, jump ahead, sell the same way. Open Solana Explorer | The scanner flags momentum with a real catalyst. Phantom warns because it can't simulate our devnet test tokens; we pay the fee, so she needs no SOL. The trade confirmed in about a second, and the fee is a fraction of a cent |
 | 1:40–2:20 | Khalil | Stats page with the seeded trades plus the live one, account-value chart | Her log shows what's working: total P/L, average win vs. average loss |
 | 2:20–2:40 | Justin | Slide: what's next | Real xStocks through Jupiter, live mode, short selling, more countries |
 | 2:40–3:00 | — | Buffer | Questions, or recovery if something breaks |
@@ -297,7 +297,7 @@ If the chart or average win/loss (Nice tier) didn't make it, Khalil shows the tr
 | Real bars don't support the AKAM story | Script the live trade on whichever stock rose cleanly after its alert |
 | Devnet or RPC slow on stage | Helius key instead of the public RPC; phone hotspot; backup video |
 | Vault runs out of devnet SOL | Fund it first thing; faucet allows 2 requests every 8 hours; ask Solana mentors for more |
-| Rehearsals pile up trades | `/demo/reset` or a fresh keypair per run; seed script rebuilds the log |
+| Rehearsals pile up trades | Rerun `seed_demo.py` (reset, burn leftovers, rebuild the log), or a fresh keypair with `demo_wallet.py --new` |
 | Running out of time | Cut from the bottom of the priority tiers; never cut the must-have loop |
 
 Only add a stock to the list if Alpaca has Friday minute bars for it; pre-IPO tokens like SpaceX have no market data to replay.
