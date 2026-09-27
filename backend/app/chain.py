@@ -4,12 +4,10 @@ every stock mint, so a trade is one legacy transaction: burn what she pays with,
 Signing order matters: she signs first (Phantom), then `cosign_and_send` adds the vault's signature.
 """
 
-import asyncio
 import json
 import os
 from pathlib import Path
 
-from solana.exceptions import SolanaRpcException
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
 from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
@@ -33,8 +31,6 @@ VAULT_KEYPAIR = Path(os.getenv("VAULT_KEYPAIR", BACKEND / "keys" / "vault-keypai
 MINTS_PATH = BACKEND / "mints.json"
 # The public devnet RPC rate-limits status polling; a Helius URL in SOLANA_RPC_URL is faster and roomier.
 POLL_S = 2.0
-# A network error while waiting for confirmation is retried this many times before giving up.
-CONFIRM_ATTEMPTS = 5
 # Phantom adds its own compute budget (and so changes the message she signs) to any transaction without one,
 # which would fail the quote check. Setting both here keeps the message as quoted. ~40k CU used; fee is the vault's.
 COMPUTE_UNITS = 100_000
@@ -87,15 +83,6 @@ def swap_message(vault_key: Pubkey, owner: Pubkey, pay_mint: Pubkey, pay_units: 
     ], fee_payer or vault_key, blockhash)
 
 
-async def token_balance(rpc: AsyncClient, owner: Pubkey, mint: Pubkey) -> int:
-    """Her balance of `mint` in base units; 0 if her token account doesn't exist yet.
-
-    Reads the account directly: an SPL token account is mint (32 bytes), owner (32), then amount (u64 LE).
-    """
-    account = (await rpc.get_account_info(get_associated_token_address(owner, mint))).value
-    return int.from_bytes(bytes(account.data)[64:72], "little") if account else 0
-
-
 def unsigned_tx(message: Message) -> bytes:
     """What /trade/quote hands the front-end as tx_base64 (after base64)."""
     return bytes(Transaction.new_unsigned(message))
@@ -104,35 +91,10 @@ def unsigned_tx(message: Message) -> bytes:
 async def confirm(rpc: AsyncClient, sig: Signature, last_valid_block_height: int | None = None) -> None:
     """Waits for `confirmed`, then raises if the transaction failed: confirm_transaction returns either way.
     Given the blockhash's last valid height, it gives up once the transaction can no longer land, not after 90 s."""
-    for attempt in range(CONFIRM_ATTEMPTS):
-        try:
-            resp = await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=POLL_S,
-                                                 last_valid_block_height=last_valid_block_height)
-            break
-        except SolanaRpcException:  # a dropped connection says nothing about the transaction: ask again
-            if attempt == CONFIRM_ATTEMPTS - 1:
-                raise
-            await asyncio.sleep(POLL_S)
-    status = resp.value[0]
+    status = (await rpc.confirm_transaction(sig, Confirmed, sleep_seconds=POLL_S,
+                                            last_valid_block_height=last_valid_block_height)).value[0]
     if status is None or status.err is not None:
         raise RuntimeError(f"transaction {sig} failed: {status.err if status else 'no status'}")
-
-
-async def send_and_confirm(rpc: AsyncClient, tx: Transaction, last_valid_block_height: int | None = None) -> Signature:
-    """Sends a fully signed transaction and waits for `confirmed`.
-
-    The signature is known before sending, so a network error on the send doesn't lose a transaction that
-    reached the cluster: with a blockhash expiry to wait for, it keeps checking that signature until the
-    transaction confirms, fails, or can no longer land. Never resends, so it can't trade twice.
-    """
-    sig = tx.signatures[0]
-    try:
-        await rpc.send_raw_transaction(bytes(tx))
-    except SolanaRpcException:
-        if last_valid_block_height is None:  # nothing bounds the wait, so don't guess
-            raise
-    await confirm(rpc, sig, last_valid_block_height)
-    return sig
 
 
 async def cosign_and_send(rpc: AsyncClient, vault_kp: Keypair, signed_tx: bytes, expected: Message,
@@ -144,7 +106,9 @@ async def cosign_and_send(rpc: AsyncClient, vault_kp: Keypair, signed_tx: bytes,
         raise ValueError("signed transaction does not match the quote")
     tx.partial_sign([vault_kp], tx.message.recent_blockhash)
     tx.verify()  # raises if her signature is missing or wrong
-    return await send_and_confirm(rpc, tx, last_valid_block_height)
+    sig = (await rpc.send_raw_transaction(bytes(tx))).value
+    await confirm(rpc, sig, last_valid_block_height)
+    return sig
 
 
 async def faucet(rpc: AsyncClient, vault_kp: Keypair, dusd: Pubkey, owner: Pubkey, units: int) -> Signature:
@@ -154,4 +118,6 @@ async def faucet(rpc: AsyncClient, vault_kp: Keypair, dusd: Pubkey, owner: Pubke
         create_idempotent_associated_token_account(vault_kp.pubkey(), owner, dusd),
         _mint_ix(vault_kp.pubkey(), dusd, owner, units),
     ], vault_kp.pubkey(), [vault_kp], latest.blockhash)
-    return await send_and_confirm(rpc, tx, latest.last_valid_block_height)
+    sig = (await rpc.send_raw_transaction(bytes(tx))).value
+    await confirm(rpc, sig, latest.last_valid_block_height)
+    return sig

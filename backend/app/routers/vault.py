@@ -1,38 +1,18 @@
-"""Vault (Matthew). BUILD_SPEC.md → Interface contracts → 3, and → Vault.
+"""Vault (Matthew). BUILD_SPEC.md → Interface contracts → 3.
 
-Quote → sign → submit: /trade/quote prices the trade at the replay clock and builds an unsigned legacy
-transaction (vault pays the fee); Phantom signs first; /trade/submit checks it's the quoted transaction,
-co-signs, sends, waits for `confirmed`, then writes the ledger row. Quotes live in memory, so run uvicorn
-with a single worker.
+STUB: /faucet, /trade/quote and /trade/submit return fake data in the contract's shape and touch
+neither the chain nor the ledger. /demo/reset is real.
 """
 
-import base64
-import math
-import time
-import uuid
-from contextlib import contextmanager
-from dataclasses import dataclass
-from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from solana.exceptions import SolanaRpcException
-from solana.rpc.core import RPCException, TransactionExpiredBlockheightExceededError
-from solders.keypair import Keypair
-from solders.message import Message
-from solders.pubkey import Pubkey
-from solders.transaction import Transaction, TransactionError
 
-from .. import chain, config, ledger, prices, stats
-from ..errors import ApiError
+from .. import ledger
 from ..replay import clock
 
 router = APIRouter()
-
-FAUCET_USD = 1000
-QUOTE_TTL_S = 30
-U = config.UNITS
 
 
 class WalletBody(BaseModel):
@@ -53,186 +33,31 @@ class SubmitBody(BaseModel):
     signed_tx_base64: str
 
 
-@dataclass
-class Quote:
-    wallet: str
-    symbol: str
-    side: str
-    price: float
-    qty_units: int
-    usd_units: int
-    sim_time: datetime
-    message: Message
-    last_valid_block_height: int
-    expires_at: float  # time.monotonic()
-
-
-quotes: dict[str, Quote] = {}
-# A submit the front-end retries (a double click, or a response lost to a dropped connection) must not trade twice:
-# a quote in flight answers 409 submit_in_progress, and a finished one returns the trade it already made.
-in_flight: set[str] = set()
-submitted: dict[str, tuple[str, int]] = {}  # quote_id → (wallet, ledger row id)
-
-
-def _owner(wallet: str) -> Pubkey:
-    try:
-        return Pubkey.from_string(wallet)
-    except ValueError:
-        raise ApiError(400, "invalid_wallet", f"{wallet!r} isn't a Solana wallet address")
-
-
-def _vault() -> Keypair:
-    try:
-        return chain.vault()
-    except FileNotFoundError:
-        raise ApiError(503, "vault_not_configured",
-                       "No vault keypair: get keys/vault-keypair.json from the team or run scripts.setup_devnet")
-
-
-@contextmanager
-def _chain_errors(expired: tuple[str, str], unavailable: str = "Couldn't reach Solana devnet; try again"):
-    """Turns devnet failures into the {error, message} shape. `expired` = (code, message) for a lapsed blockhash."""
-    try:
-        yield
-    except SolanaRpcException:
-        raise ApiError(502, "chain_unavailable", unavailable)
-    except RPCException as e:  # e.g. preflight simulation failed
-        raise ApiError(409, "tx_failed", f"Devnet rejected the transaction: {getattr(e.args[0], 'message', e)}")
-    except TransactionExpiredBlockheightExceededError:
-        raise ApiError(409, *expired)
-    except RuntimeError as e:  # chain.confirm: landed but failed on-chain
-        raise ApiError(409, "tx_failed", str(e))
-
-
-def _amounts(body: QuoteBody, price: float) -> tuple[int | None, int | None]:
-    """(qty_units, usd_units) from the request. Buys burn exactly usd_amount and round qty down to 6 decimals;
-    sells mint qty × price rounded down. qty_units is None for sell_all: it's the on-chain balance, read later."""
-    given = [body.usd_amount is not None, body.qty is not None, body.sell_all]
-    if sum(given) != 1:
-        raise ApiError(400, "invalid_amount", "Send exactly one of usd_amount, qty or sell_all")
-    if body.sell_all:
-        if body.side == "buy":
-            raise ApiError(400, "invalid_amount", "sell_all only works for sells")
-        return None, None
-    if (body.usd_amount if body.usd_amount is not None else body.qty) <= 0:
-        raise ApiError(400, "invalid_amount", "The amount must be more than zero")
-
-    if body.usd_amount is not None:
-        usd_units = round(body.usd_amount * U)
-        qty_units = math.floor(usd_units / price)
-        if body.side == "sell":
-            usd_units = math.floor(qty_units * price)
-    else:
-        qty_units = round(body.qty * U)
-        usd_units = round(qty_units * price) if body.side == "buy" else math.floor(qty_units * price)
-    if qty_units <= 0 or usd_units <= 0:
-        raise ApiError(400, "invalid_amount", "That amount rounds to zero")
-    return qty_units, usd_units
-
-
 @router.post("/faucet")
-async def faucet(body: WalletBody):
-    owner, vault = _owner(body.wallet), _vault()
-    units = FAUCET_USD * U
-    with _chain_errors(("tx_failed", "The faucet transaction expired before it landed; try again")):
-        async with chain.client() as rpc:
-            sig = await chain.faucet(rpc, vault, chain.mints()["dUSD"], owner, units)
-    ledger.record(body.wallet, "deposit", None, None, None, units, clock.sim_time, str(sig))
-    return {"signature": str(sig), "usd_amount": FAUCET_USD}
+def faucet(body: WalletBody):
+    return {"signature": "stub-signature", "usd_amount": 1000}
 
 
 @router.post("/trade/quote")
-async def trade_quote(body: QuoteBody):
-    symbol = body.symbol.upper()
-    if symbol not in config.SYMBOLS:
-        raise ApiError(404, "unknown_symbol", f"{body.symbol} isn't one of the 19 supported stocks")
-    owner, vault, mints = _owner(body.wallet), _vault(), chain.mints()
-    sim_time = clock.sim_time
-    price = prices.price_at(symbol, sim_time)
-    qty_units, usd_units = _amounts(body, price)
-    dusd, stock = mints["dUSD"], mints[symbol]
-
-    with _chain_errors(("quote_expired", "The quote expired; quote again")):
-        async with chain.client() as rpc:
-            if body.side == "buy":
-                have = await chain.token_balance(rpc, owner, dusd)
-                if have < usd_units:
-                    raise ApiError(409, "insufficient_funds",
-                                   f"That costs ${usd_units / U:,.2f} but the wallet has ${have / U:,.2f}")
-            else:
-                have = await chain.token_balance(rpc, owner, stock)
-                if qty_units is None:  # sell_all burns the exact on-chain balance
-                    qty_units, usd_units = have, math.floor(have * price)
-                if not have or have < qty_units:
-                    raise ApiError(409, "insufficient_shares",
-                                   f"The wallet holds {have / U:,.6f} {symbol}, not {qty_units / U:,.6f}")
-                if usd_units <= 0:
-                    raise ApiError(400, "invalid_amount", "That amount rounds to zero")
-            latest = (await rpc.get_latest_blockhash()).value
-
-    pay, get = ((dusd, usd_units), (stock, qty_units)) if body.side == "buy" else ((stock, qty_units), (dusd, usd_units))
-    message = chain.swap_message(vault.pubkey(), owner, pay[0], pay[1], get[0], get[1], latest.blockhash)
-
-    now = time.monotonic()
-    for qid in [q for q, v in quotes.items() if v.expires_at < now]:
-        del quotes[qid]
-    quote_id = uuid.uuid4().hex
-    quotes[quote_id] = Quote(body.wallet, symbol, body.side, price, qty_units, usd_units, sim_time, message,
-                             latest.last_valid_block_height, now + QUOTE_TTL_S)
-    return {
-        "quote_id": quote_id, "symbol": symbol, "side": body.side,
-        "price": round(price, 2), "qty": round(qty_units / U, 6), "usd_amount": round(usd_units / U, 2),
-        "sim_time": config.iso(sim_time), "expires_in_s": QUOTE_TTL_S,
-        "tx_base64": base64.b64encode(chain.unsigned_tx(message)).decode(),
-    }
+def trade_quote(body: QuoteBody):
+    return {"quote_id": "stub-quote", "symbol": body.symbol.upper(), "side": body.side,
+            "price": 120.00, "qty": 2.5, "usd_amount": 300.00,
+            "sim_time": "2026-09-25T09:31:00-04:00", "expires_in_s": 30, "tx_base64": ""}
 
 
 @router.post("/trade/submit")
-async def trade_submit(body: SubmitBody):
-    if body.quote_id in submitted:
-        wallet, row_id = submitted[body.quote_id]
-        return stats.transaction(ledger.rows(wallet), row_id)
-    if body.quote_id in in_flight:
-        raise ApiError(409, "submit_in_progress", "This trade is already being sent; wait for it to confirm")
-    q = quotes.pop(body.quote_id, None)  # one submit per quote
-    if q is None or time.monotonic() > q.expires_at:
-        raise ApiError(409, "quote_expired", "The quote expired; quote again")
-    in_flight.add(body.quote_id)
-    try:
-        return await _submit(body, q)
-    finally:
-        in_flight.discard(body.quote_id)
-
-
-async def _submit(body: SubmitBody, q: Quote) -> dict:
-    try:
-        raw = base64.b64decode(body.signed_tx_base64, validate=True)
-        Transaction.from_bytes(raw)
-    except ValueError:  # includes binascii.Error
-        raise ApiError(400, "invalid_transaction", "signed_tx_base64 isn't a serialized transaction")
-
-    vault = _vault()
-    with _chain_errors(("quote_expired", "The quote expired before the transaction landed; quote again"),
-                       "Lost touch with Solana devnet mid-trade; check the transaction log before trading again"):
-        async with chain.client() as rpc:
-            try:
-                sig = await chain.cosign_and_send(rpc, vault, raw, q.message, q.last_valid_block_height)
-            except ValueError:
-                raise ApiError(400, "tx_mismatch", "The signed transaction doesn't match the quote")
-            except TransactionError:
-                raise ApiError(400, "not_signed", "The transaction is missing the wallet's signature")
-
-    row_id = ledger.record(q.wallet, q.side, q.symbol, q.qty_units, q.price, q.usd_units, q.sim_time, str(sig))
-    submitted[body.quote_id] = (q.wallet, row_id)
-    return stats.transaction(ledger.rows(q.wallet), row_id)
+def trade_submit(body: SubmitBody):
+    return {"id": 2, "sim_time": "2026-09-25T09:31:00-04:00", "symbol": "AKAM", "side": "buy",
+            "qty": 2.5, "price": 120.00, "usd_amount": 300.00,
+            "cash_before": 1000.00, "cash_after": 700.00,
+            "realized_pl": None, "realized_pl_pct": None, "outcome": None,
+            "opened_at": None, "held_min": None,
+            "signature": "stub-signature",
+            "explorer_url": "https://explorer.solana.com/tx/stub-signature?cluster=devnet"}
 
 
 @router.post("/demo/reset")
 def demo_reset(body: WalletBody):
     ledger.clear(body.wallet)
-    for qid in [q for q, v in quotes.items() if v.wallet == body.wallet]:
-        del quotes[qid]
-    for qid in [q for q, (w, _) in submitted.items() if w == body.wallet]:
-        del submitted[qid]
     clock.reset()
     return {"wallet": body.wallet, **clock.state()}
