@@ -1,10 +1,23 @@
-# ShellHacks 2026: tokenized US stocks on Solana
+# MomentumX: tokenized US stocks on Solana
+
+<div align="center">
+
+## 🏆 Winner — MLH Best Use of Solana
+### ShellHacks 2026
+
+<img src="https://img.shields.io/badge/MLH-Best%20Use%20of%20Solana-9945FF?style=flat-square&logo=solana&logoColor=white" alt="MLH Best Use of Solana">
+
+</div>
+
+<div align="center">
+  <a href="https://mlh.io/na?utm_source=na-hackathon&utm_medium=TrustBadge&utm_campaign=2026-season&utm_content=white"><img src="https://logged-assets.s3.amazonaws.com/trust-badge/2027/mlh-trust-badge-2027-white.svg" alt="Major League Hacking Official 2027 Season" width="175"></a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="https://cdn.jsdelivr.net/gh/weareinit/pithos@0befef8d22a6bfb025815b7e254fef0b48d4a47a/landing/hero_robots_1.png" alt="INIT Robots" width="390">
+</div>
 
 People outside the US can't easily buy US stocks. This app lets them trade tokenized US stocks on Solana, with a momentum scanner that flags stocks moving on real news and a trade log that shows whether their trading works.
 
 For the demo, the market is **Friday Sept 25, 2026, replayed minute by minute**, and every trade is a real Solana **devnet** transaction using our own test tokens: `dUSD` ("demo dollars") and one mock token per stock (e.g. `AKAMx-demo`). US residents can't buy real xStocks, so production would route through Jupiter to real xStocks. xStocks track a stock's price; they aren't legal share ownership.
 
-Entered in **Blackstone** and **MLH Best Use of Solana**.
+Entered in the **Blackstone** and **MLH Best Use of Solana** challenges.
 
 ## How it works
 
@@ -17,21 +30,6 @@ replay clock → scanner → alert card → trade ticket → vault builds an uns
 - **Frontend:** React + Vite (`frontend/`) on `localhost:5173`, with Phantom as the wallet. The wallet's public key is the account; there's no signup.
 
 The full design (scope, API contracts, SQLite schema, scanner rules, vault flow, stats math, demo script) is in [`docs/BUILD_SPEC.md`](docs/BUILD_SPEC.md). The reasoning behind it is in [`docs/DECISIONS.md`](docs/DECISIONS.md).
-
-## Status
-
-The must-have loop works end to end on devnet with Phantom (connect → demo dollars → buy → sell → log → total P/L); it passed the 10:30 PM checkpoint on Saturday. What's left is in [`docs/TODO.md`](docs/TODO.md).
-
-| Piece | Owner | State |
-| --- | --- | --- |
-| Replay clock + prices (`/replay/*`, `/prices`) | Khalil | Working; serves quotes and chart history from Alpaca bars, with placeholder quotes until replay bars are loaded |
-| Trade log + stats (`/transactions`, `/portfolio`) | Khalil | Working, computed from the ledger |
-| Replay data loader (Alpaca bars, Finnhub news) | Matthew | Working; loads 19 symbols atomically into SQLite |
-| Vault (`/faucet`, `/trade/quote`, `/trade/submit`, `/demo/reset`) | Matthew | Working on devnet. The faucet funds each wallet once; a retried submit never trades twice |
-| Scanner + `/scanner` + `/alerts` | Diego | Monitors every supported stock each replay minute from the 7:00 AM replay start through 4:15 PM ET; news is released for the rest of the replay after momentum first passes. Alerts still require both momentum and RVOL. The real data produces AKAM and DDOG at 9:30 AM and MSFT at 9:41 AM |
-| Frontend | Diego, Justin | Working: momentum monitor (all-stock signals, ten-minute news updates, line/candlestick Alpaca charts, replay controls, trade ticket through Phantom) and dashboard (account value, average win/loss, account-value chart, holdings, trade log) |
-| Mints, vault keypair, `mints.json` | Justin | Done on devnet with `scripts/setup_devnet.py` (#9) |
-| Demo seed (`seed_demo.py`) | Matthew | Working; pre-runs the non-live demo trades with the demo wallet |
 
 ## Run it locally
 
